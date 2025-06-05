@@ -115,5 +115,11 @@
     <None Include="shaders\shader_5_1_cloud.vert">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="shaders\shader_5_1_pbr.frag">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\shader_5_1_pbr.vert">
+      <Filter>Shader Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

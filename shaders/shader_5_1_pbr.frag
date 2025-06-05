@@ -1,21 +1,21 @@
 #version 430 core
 
-// Uniformy teksturowe
+// Uniformy tekstur
 uniform sampler2D colorTexture;
 uniform sampler2D normalMap;
 uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D emissionMap; // Mapa emisji
 
-// Uniformy PBR
-uniform float roughness; // skaluj¹ce wartoœæ pobrana z roughnessMap (dla statku)
-uniform float metallic;  // skaluj¹ce wartoœæ pobrana z metallicMap (dla statku)
+// Uniformy dla PBR
+uniform float roughness; // Wartoœæ skaluj¹ca pobrana z roughnessMap (dla statku)
+uniform float metallic;  // Wartoœæ skaluj¹ca pobrana z metallicMap (dla statku)
 
 // Uniformy sceniczne
 uniform vec3 lightPos;
 uniform vec3 cameraPos;
 
-// Wejœcia z vertex shadera
+// Zmienne z vertex shadera
 in vec3 worldPos;
 in vec2 texCoord;
 in mat3 TBN;

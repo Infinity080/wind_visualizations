@@ -43,6 +43,8 @@
     <None Include="shaders\shader_5_1_atm.vert" />
     <None Include="shaders\shader_5_1_cloud.frag" />
     <None Include="shaders\shader_5_1_cloud.vert" />
+    <None Include="shaders\shader_5_1_pbr.frag" />
+    <None Include="shaders\shader_5_1_pbr.vert" />
     <None Include="shaders\shader_5_1_tex.frag" />
     <None Include="shaders\shader_5_1_tex.vert" />
   </ItemGroup>
@@ -51,7 +53,7 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>grk-cw6</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.18362.0</WindowsTargetPlatformVersion>
-    <ProjectName>grk-cw6</ProjectName>
+    <ProjectName>projekt-grk</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
