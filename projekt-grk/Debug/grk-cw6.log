@@ -1,0 +1,7 @@
+﻿  main.cpp
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\shared\minwindef.h(130,9): warning C4005: 'APIENTRY': macro redefinition
+j:\Downloads\Projekt_GRK\src\ex_6_1.hpp(65,10): warning C4305: 'initializing': truncation from 'double' to 'float'
+j:\Downloads\Projekt_GRK\src\ex_6_1.hpp(186,13): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+imgui.obj : warning LNK4075: ignoring '/EDITANDCONTINUE' due to '/INCREMENTAL:NO' specification
+LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
+  grk-cw6.vcxproj -> j:\Downloads\Projekt_GRK\Debug\projekt-grk.exe

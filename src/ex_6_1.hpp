@@ -38,6 +38,8 @@ Core::RenderContext sphereContext;
 glm::vec3 cameraPos = glm::vec3(-6.f, 0, 0);
 glm::vec3 cameraDir = glm::vec3(1.f, 0.f, 0.f);
 float aspectRatio = 1.f;
+float angleSpeed = 0.15f * 0.016f;
+float moveSpeed = 0.3f * 0.016f;
 ////////////////////////////////////////////////////
 
 
@@ -202,7 +204,6 @@ void renderScene(GLFWwindow* window)
 	// Rysowanie atmosfery
 	drawObjectAtmosphere(sphereContext, atmosphereModelMatrix);
 
-	glfwSwapBuffers(window);
 }
 ////////////////////////////////////////////////////
 
@@ -304,6 +305,10 @@ void shutdown(GLFWwindow* window) {
 	shaderLoader.DeleteProgram(programAtm);
 	shaderLoader.DeleteProgram(programCloud);
 
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+
 	glDeleteTextures(1, &texture::earth);
 	glDeleteTextures(1, &texture::clouds);
 	glDeleteTextures(1, &texture::earthNormal);
@@ -316,9 +321,9 @@ void processInput(GLFWwindow* window)
 {
 	glm::vec3 cameraSide = glm::normalize(glm::cross(cameraDir, glm::vec3(0.f, 1.f, 0.f)));
 	glm::vec3 cameraUp = glm::vec3(0.f, 1.f, 0.f);
-	float angleSpeed = 0.15f * 0.016f;
-	float moveSpeed = 0.3f * 0.016f;
 
+
+	// Obsługa ruchu kamery
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, true);
 	}
@@ -347,7 +352,33 @@ void renderLoop(GLFWwindow* window) {
 	while (!glfwWindowShouldClose(window))
 	{
 		processInput(window);
+
+
+		// Uruchomienie ImGui
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		ImGui::SetNextWindowSize(ImVec2(120, 200), ImGuiCond_Always);
+		ImGui::Begin("Sterowanie");
+
+		ImGui::PushItemWidth(-1);
+		// Slidery
+		ImGui::SliderFloat("angleSpeed", &angleSpeed, 0.0f, 0.3f);
+		ImGui::SliderFloat("moveSpeed", &moveSpeed, 0.0f, 0.3f);
+		ImGui::PopItemWidth();
+
+		ImGui::End();
+
+		// Render sceny
 		renderScene(window);
+
+		// Render ImGui
+		ImGui::Render();
+		
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		
+		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 }

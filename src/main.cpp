@@ -1,11 +1,13 @@
-#include "glew.h"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
+#include "glew.h"
 #include <GLFW/glfw3.h>
 #include "glm.hpp"
 #include "ext.hpp"
 #include <iostream>
 #include <cmath>
-
 #include "ex_6_1.hpp"
 
 
@@ -35,6 +37,17 @@ int main(int argc, char** argv)
 	// £adowanie OpenGL za pomoc¹ glew
 	glewInit();
 	glViewport(0, 0, 1000, 1000);
+
+	// £adowanie ImGui
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+	ImGui::StyleColorsDark();
+
+	// Setup Platform/Renderer bindings
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 430");
 
 	init(window);
 
