@@ -1,0 +1,31 @@
+﻿  Box.cpp
+  Camera.cpp
+  main.cpp
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\shared\minwindef.h(130,9): warning C4005: 'APIENTRY': macro redefinition
+j:\Downloads\cw6\cw 6\src\ex_6_1.hpp(66,10): warning C4305: 'initializing': truncation from 'double' to 'float'
+j:\Downloads\cw6\cw 6\src\ex_6_1.hpp(187,13): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  Render_Utils.cpp
+  Shader_Loader.cpp
+  Texture.cpp
+  Generating Code...
+  image_DXT.c
+j:\Downloads\cw6\cw 6\src\SOIL\image_DXT.c(92,9): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  image_helper.c
+j:\Downloads\cw6\cw 6\src\SOIL\image_helper.c(325,17): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+j:\Downloads\cw6\cw 6\src\SOIL\image_helper.c(366,13): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+j:\Downloads\cw6\cw 6\src\SOIL\image_helper.c(373,20): warning C4244: '=': conversion from 'float' to 'int', possible loss of data
+j:\Downloads\cw6\cw 6\src\SOIL\image_helper.c(415,13): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+j:\Downloads\cw6\cw 6\src\SOIL\image_helper.c(422,20): warning C4244: '=': conversion from 'float' to 'int', possible loss of data
+  SOIL.c
+j:\Downloads\cw6\cw 6\src\SOIL\SOIL.c(1719,36): warning C4018: '<=': signed/unsigned mismatch
+j:\Downloads\cw6\cw 6\src\SOIL\SOIL.c(1729,19): warning C4018: '<': signed/unsigned mismatch
+j:\Downloads\cw6\cw 6\src\SOIL\SOIL.c(1841,6): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  stb_image_aug.c
+j:\Downloads\cw6\cw 6\src\SOIL\stbi_DDS_aug_c.h(362,19): warning C4018: '>': signed/unsigned mismatch
+j:\Downloads\cw6\cw 6\src\SOIL\stbi_DDS_aug_c.h(366,19): warning C4018: '>': signed/unsigned mismatch
+j:\Downloads\cw6\cw 6\src\SOIL\stbi_DDS_aug_c.h(390,19): warning C4018: '<': signed/unsigned mismatch
+j:\Downloads\cw6\cw 6\src\SOIL\stbi_DDS_aug_c.h(427,19): warning C4018: '<': signed/unsigned mismatch
+  Generating Code...
+Box.obj : warning LNK4075: ignoring '/EDITANDCONTINUE' due to '/INCREMENTAL:NO' specification
+LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
+  grk-cw6.vcxproj -> j:\Downloads\grk_cw1\grk\Debug\grk-cw6.exe
