@@ -31,11 +31,11 @@ GLuint programAtm; // Program do rysowania atmosfery
 GLuint programCloud; // Program do rysowania chmur
 
 Core::Shader_Loader shaderLoader;
-
+	
 Core::RenderContext sphereContext;
 
 // Zmienne kamery
-glm::vec3 cameraPos = glm::vec3(-4.f, 0, 0);
+glm::vec3 cameraPos = glm::vec3(-6.f, 0, 0);
 glm::vec3 cameraDir = glm::vec3(1.f, 0.f, 0.f);
 float aspectRatio = 1.f;
 ////////////////////////////////////////////////////
@@ -184,15 +184,13 @@ void renderScene(GLFWwindow* window)
 	float time = glfwGetTime();
 
 	// Macierz modelu dla planety
-	glm::mat4 planetModelMatrix = glm::rotate(time * 0.1f, glm::vec3(0, 1, 0))
-		* glm::scale(glm::vec3(3.0) / 110.0f);
+	glm::mat4 planetModelMatrix = glm::scale(glm::vec3(3.0) / 110.0f);
 
 	// Rysowanie planety
 	drawObjectTexture(sphereContext, planetModelMatrix, texture::earth, texture::earthNormal);
 
 	// Macierz modelu dla chmur
-	glm::mat4 cloudModelMatrix = glm::rotate(time * 0.05f, glm::vec3(0, 1, 0))
-		* planetModelMatrix
+	glm::mat4 cloudModelMatrix = planetModelMatrix
 		* glm::scale(glm::vec3(1.005f));
 
 	// Rysowanie chmur
