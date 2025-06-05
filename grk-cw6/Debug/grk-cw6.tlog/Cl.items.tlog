@@ -1,10 +1,10 @@
-j:\Downloads\Projekt_GRK\cw 6\src\Box.cpp;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\Box.obj
-j:\Downloads\Projekt_GRK\cw 6\src\Camera.cpp;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\Camera.obj
-j:\Downloads\Projekt_GRK\cw 6\src\main.cpp;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\main.obj
-j:\Downloads\Projekt_GRK\cw 6\src\Render_Utils.cpp;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\Render_Utils.obj
-j:\Downloads\Projekt_GRK\cw 6\src\Shader_Loader.cpp;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\Shader_Loader.obj
-j:\Downloads\Projekt_GRK\cw 6\src\SOIL\image_DXT.c;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\image_DXT.obj
-j:\Downloads\Projekt_GRK\cw 6\src\SOIL\image_helper.c;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\image_helper.obj
-j:\Downloads\Projekt_GRK\cw 6\src\SOIL\SOIL.c;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\SOIL.obj
-j:\Downloads\Projekt_GRK\cw 6\src\SOIL\stb_image_aug.c;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\stb_image_aug.obj
-j:\Downloads\Projekt_GRK\cw 6\src\Texture.cpp;j:\Downloads\Projekt_GRK\cw 6\grk-cw6\Debug\Texture.obj
+j:\Downloads\Projekt_GRK\src\Box.cpp;j:\Downloads\Projekt_GRK\grk-cw6\Debug\Box.obj
+j:\Downloads\Projekt_GRK\src\Camera.cpp;j:\Downloads\Projekt_GRK\grk-cw6\Debug\Camera.obj
+j:\Downloads\Projekt_GRK\src\main.cpp;j:\Downloads\Projekt_GRK\grk-cw6\Debug\main.obj
+j:\Downloads\Projekt_GRK\src\Render_Utils.cpp;j:\Downloads\Projekt_GRK\grk-cw6\Debug\Render_Utils.obj
+j:\Downloads\Projekt_GRK\src\Shader_Loader.cpp;j:\Downloads\Projekt_GRK\grk-cw6\Debug\Shader_Loader.obj
+j:\Downloads\Projekt_GRK\src\SOIL\image_DXT.c;j:\Downloads\Projekt_GRK\grk-cw6\Debug\image_DXT.obj
+j:\Downloads\Projekt_GRK\src\SOIL\image_helper.c;j:\Downloads\Projekt_GRK\grk-cw6\Debug\image_helper.obj
+j:\Downloads\Projekt_GRK\src\SOIL\SOIL.c;j:\Downloads\Projekt_GRK\grk-cw6\Debug\SOIL.obj
+j:\Downloads\Projekt_GRK\src\SOIL\stb_image_aug.c;j:\Downloads\Projekt_GRK\grk-cw6\Debug\stb_image_aug.obj
+j:\Downloads\Projekt_GRK\src\Texture.cpp;j:\Downloads\Projekt_GRK\grk-cw6\Debug\Texture.obj
