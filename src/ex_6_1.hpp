@@ -40,23 +40,30 @@ glm::vec3 cameraDir = glm::vec3(1.f, 0.f, 0.f);
 float aspectRatio = 1.f;
 float angleSpeed = 0.15f * 0.016f;
 float moveSpeed = 0.3f * 0.016f;
-////////////////////////////////////////////////////
 
+float cameraAngleX = 0.0f;
+float cameraAngleY = 0.0f;
+float cameraDistance = 6.0f;
+
+bool dragging = false;
+double lastX = 0.0;
+double lastY = 0.0;
+float mouseSensitivity = 0.005f;
+
+////////////////////////////////////////////////////
 
 ///////// Funkcje do kamery //////////
 glm::mat4 createCameraMatrix()
 {
-	glm::vec3 cameraSide = glm::normalize(glm::cross(cameraDir, glm::vec3(0.f, 1.f, 0.f)));
-	glm::vec3 cameraUp = glm::normalize(glm::cross(cameraSide, cameraDir));
-	glm::mat4 cameraRotrationMatrix = glm::mat4({
-		cameraSide.x,cameraSide.y,cameraSide.z,0,
-		cameraUp.x,cameraUp.y,cameraUp.z ,0,
-		-cameraDir.x,-cameraDir.y,-cameraDir.z,0,
-		0.,0.,0.,1.,
-		});
-	cameraRotrationMatrix = glm::transpose(cameraRotrationMatrix);
-	glm::mat4 cameraMatrix = cameraRotrationMatrix * glm::translate(-cameraPos);
-	return cameraMatrix;
+	float maxAngleY = glm::radians(89.0f);
+	cameraAngleY = glm::clamp(cameraAngleY, -maxAngleY, maxAngleY);
+
+	float x = cameraDistance * cos(cameraAngleY) * cos(cameraAngleX);
+	float y = cameraDistance * sin(cameraAngleY);
+	float z = cameraDistance * cos(cameraAngleY) * sin(cameraAngleX);
+	cameraPos = glm::vec3(x, y, z);
+	cameraDir = glm::normalize(-cameraPos);
+	return glm::lookAt(cameraPos, glm::vec3(0.0f), glm::vec3(0, 1, 0));
 }
 
 glm::mat4 createPerspectiveMatrix()
@@ -75,6 +82,17 @@ glm::mat4 createPerspectiveMatrix()
 	perspectiveMatrix = glm::transpose(perspectiveMatrix);
 	return perspectiveMatrix;
 }
+
+// Funkcja do kontroli scrolla
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse) {
+		return;
+	}
+	cameraDistance -= yoffset * moveSpeed * 5.0f;
+	cameraDistance = glm::clamp(cameraDistance, 4.0f, 8.0f);
+}
+
 ////////////////////////////////////////////////////
 
 
@@ -236,6 +254,48 @@ void loadModelToContext(std::string path, Core::RenderContext& context)
 ///////// Funkcja inicjalizująca /////////
 void init(GLFWwindow* window)
 {
+	glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
+		ImGuiIO& io = ImGui::GetIO();
+		ImGui_ImplGlfw_MouseButtonCallback(w, button, action, mods); // Forward to ImGui
+
+		if (button == GLFW_MOUSE_BUTTON_LEFT) {
+			if (action == GLFW_PRESS && !io.WantCaptureMouse) {
+				dragging = true;
+				glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+				glfwGetCursorPos(w, &lastX, &lastY);
+			}
+			else if (action == GLFW_RELEASE) {
+				dragging = false;
+				glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			}
+		}
+		});
+
+
+
+	glfwSetCursorPosCallback(window, [](GLFWwindow* w, double xpos, double ypos) {
+		ImGuiIO& io = ImGui::GetIO();
+		if (!dragging || io.WantCaptureMouse) {
+			return;
+		}
+		double dx = xpos - lastX;
+		double dy = ypos - lastY;
+		lastX = xpos;
+		lastY = ypos;
+
+		if (abs(dx) > 50 || abs(dy) > 50) {
+			return;
+		}
+		cameraAngleX += dx * mouseSensitivity;
+		cameraAngleY += dy * mouseSensitivity;
+
+		float maxAngleY = glm::radians(89.0f);
+		cameraAngleY = glm::clamp(cameraAngleY, -maxAngleY, maxAngleY);
+		});
+
+	glfwSetScrollCallback(window, scroll_callback);
+
+
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glEnable(GL_DEPTH_TEST);
 	
@@ -319,32 +379,27 @@ void shutdown(GLFWwindow* window) {
 ///////// Funkcja do przetwarzania wejścia /////////
 void processInput(GLFWwindow* window)
 {
-	glm::vec3 cameraSide = glm::normalize(glm::cross(cameraDir, glm::vec3(0.f, 1.f, 0.f)));
-	glm::vec3 cameraUp = glm::vec3(0.f, 1.f, 0.f);
-
-
-	// Obsługa ruchu kamery
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
-	}
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		cameraPos += cameraDir * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		cameraPos -= cameraDir * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
-		cameraPos += cameraSide * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS)
-		cameraPos -= cameraSide * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-		cameraPos += cameraUp * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-		cameraPos -= cameraUp * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		cameraDir = glm::vec3(glm::rotate(angleSpeed, cameraUp) * glm::vec4(cameraDir, 0));
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		cameraDir = glm::vec3(glm::rotate(-angleSpeed, cameraUp) * glm::vec4(cameraDir, 0));
 
+	if  (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		cameraAngleX += angleSpeed;
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		cameraAngleX -= angleSpeed;
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		cameraAngleY += angleSpeed;
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		cameraAngleY -= angleSpeed;
+
+	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+		cameraDistance -= moveSpeed;
+	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+		cameraDistance += moveSpeed;
+
+	cameraDistance = glm::clamp(cameraDistance, 4.0f, 8.0f);
 }
+
+
 ////////////////////////////////////////////////////
 
 ///////// Pętla renderująca /////////
@@ -365,7 +420,7 @@ void renderLoop(GLFWwindow* window) {
 		ImGui::PushItemWidth(-1);
 		// Slidery
 		ImGui::SliderFloat("angleSpeed", &angleSpeed, 0.0f, 0.3f);
-		ImGui::SliderFloat("moveSpeed", &moveSpeed, 0.0f, 0.3f);
+		ImGui::SliderFloat("zoomSpeed", &moveSpeed, 0.0f, 0.3f);
 		ImGui::PopItemWidth();
 
 		ImGui::End();
