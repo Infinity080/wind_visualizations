@@ -44,6 +44,12 @@ float moveSpeed = 0.3f * 0.016f;
 float cameraAngleX = 0.0f;
 float cameraAngleY = 0.0f;
 float cameraDistance = 6.0f;
+
+bool dragging = false;
+double lastX = 0.0;
+double lastY = 0.0;
+float mouseSensitivity = 0.005f;
+
 ////////////////////////////////////////////////////
 
 ///////// Funkcje do kamery //////////
@@ -76,6 +82,17 @@ glm::mat4 createPerspectiveMatrix()
 	perspectiveMatrix = glm::transpose(perspectiveMatrix);
 	return perspectiveMatrix;
 }
+
+// Funkcja do kontroli scrolla
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse) {
+		return;
+	}
+	cameraDistance -= yoffset * moveSpeed * 5.0f;
+	cameraDistance = glm::clamp(cameraDistance, 4.0f, 8.0f);
+}
+
 ////////////////////////////////////////////////////
 
 
@@ -237,6 +254,48 @@ void loadModelToContext(std::string path, Core::RenderContext& context)
 ///////// Funkcja inicjalizująca /////////
 void init(GLFWwindow* window)
 {
+	glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
+		ImGuiIO& io = ImGui::GetIO();
+		ImGui_ImplGlfw_MouseButtonCallback(w, button, action, mods); // Forward to ImGui
+
+		if (button == GLFW_MOUSE_BUTTON_LEFT) {
+			if (action == GLFW_PRESS && !io.WantCaptureMouse) {
+				dragging = true;
+				glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+				glfwGetCursorPos(w, &lastX, &lastY);
+			}
+			else if (action == GLFW_RELEASE) {
+				dragging = false;
+				glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			}
+		}
+		});
+
+
+
+	glfwSetCursorPosCallback(window, [](GLFWwindow* w, double xpos, double ypos) {
+		ImGuiIO& io = ImGui::GetIO();
+		if (!dragging || io.WantCaptureMouse) {
+			return;
+		}
+		double dx = xpos - lastX;
+		double dy = ypos - lastY;
+		lastX = xpos;
+		lastY = ypos;
+
+		if (abs(dx) > 50 || abs(dy) > 50) {
+			return;
+		}
+		cameraAngleX += dx * mouseSensitivity;
+		cameraAngleY += dy * mouseSensitivity;
+
+		float maxAngleY = glm::radians(89.0f);
+		cameraAngleY = glm::clamp(cameraAngleY, -maxAngleY, maxAngleY);
+		});
+
+	glfwSetScrollCallback(window, scroll_callback);
+
+
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glEnable(GL_DEPTH_TEST);
 	
