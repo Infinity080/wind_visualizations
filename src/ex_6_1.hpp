@@ -14,6 +14,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <string>
+#include "shapefil.h"
 
 ///////// Inicjalizacje zmiennych //////////
 // Inicjalizacja zmiennych dla tekstur
@@ -50,7 +51,70 @@ double lastX = 0.0;
 double lastY = 0.0;
 float mouseSensitivity = 0.005f;
 
+GLuint bordersVAO = 0, bordersVBO = 0;
+std::vector<GLuint> countryFirstVert, countryVertCount;
+
+std::vector<std::vector<glm::vec3>> countryBoundaries;
+
 ////////////////////////////////////////////////////
+	// Quick Guide for navigating through shapefiles:
+	/*
+	* We have shapes -> parts inside shapes -> vertices
+	* shapefile contains number of shapes, shape type and a bounding box
+	* SHPObject:
+		* panPartStart - indexes for padfX,padfY
+		* nParts - number of parts of a shape
+		* nVertices - number of vertices of a shape
+		* padfX,padfY - actual coordinates (arrays)
+	*/
+void loadCountryBoundaries(const std::string& filePath) {
+	SHPHandle handler = SHPOpen(filePath.c_str(), "rb"); // read shapefile as binary
+
+	int n;
+	int Type; // polygon, line, point
+	double temp1[4], temp2[4];
+	SHPGetInfo(handler, &n, &Type, temp1, temp2); 
+
+	for (int i = 0; i < n; i++) // loop over countries
+	{ 
+		SHPObject* country = SHPReadObject(handler, i);
+
+		// we need to loop over each part if it has more than 1
+		int parts = country->nParts;
+		for (int j = 0; j < parts; j++ )
+		{ 
+			int start = country->panPartStart[j];
+			int end;
+			if (j + 1 < parts) 
+			{
+				end = country->panPartStart[j + 1];
+			}
+			else {
+				end = country->nVertices;
+			}
+
+			std::vector<glm::vec3> shape;
+
+			for (int j = start; j < end; j++) {
+				double lon = country->padfX[j];
+				double lat = country->padfY[j];
+				float latRad = glm::radians((float)lat);
+				float lonRad = glm::radians((float)lon);
+
+				float x = cos(latRad) * cos(lonRad);
+				float y = sin(latRad);
+				float z = - cos(latRad) * sin(lonRad);
+
+				shape.emplace_back(x, y, z); 
+			}
+
+			if (shape.size() > 1)
+				countryBoundaries.push_back(std::move(shape));
+		}
+
+	}
+	SHPClose(handler);
+}
 
 ///////// Funkcje do kamery //////////
 glm::mat4 createCameraMatrix()
@@ -207,22 +271,31 @@ void renderScene(GLFWwindow* window)
 	glm::mat4 planetModelMatrix = glm::scale(glm::vec3(3.0) / 110.0f);
 
 	// Rysowanie planety
-	drawObjectTexture(sphereContext, planetModelMatrix, texture::earth, texture::earthNormal);
+	drawObjectColor(sphereContext, planetModelMatrix, glm::vec3(1.7f, 1.7f, 2.55f));
 
-	// Macierz modelu dla chmur
-	glm::mat4 cloudModelMatrix = planetModelMatrix
-		* glm::scale(glm::vec3(1.005f));
+	// Drawing boundaries
+	glm::mat4 PerspectivexCamera = createPerspectiveMatrix() * createCameraMatrix();
+	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f));//reverse the earth scaling
 
-	// Rysowanie chmur
-	drawObjectClouds(sphereContext, cloudModelMatrix, texture::clouds);
-
-	// Macierz modelu dla atmosfery
-	glm::mat4 atmosphereModelMatrix = planetModelMatrix * glm::scale(glm::vec3(1.009f));
+	glUseProgram(program);
+	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, &bordersTransform[0][0]); // set shaders
+	glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_FALSE, &planetModelMatrix[0][0]);
+	// set values in shaders
+	glUniform3f(glGetUniformLocation(program, "color"), 0.0f, 0.0f, 2.55f); 
+	glUniform3f(glGetUniformLocation(program, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	
-	// Rysowanie atmosfery
-	drawObjectAtmosphere(sphereContext, atmosphereModelMatrix);
-
+	// draw the actual lines
+	glLineWidth(2.0f);
+	glBindVertexArray(bordersVAO);
+	for (int i = 0; i < countryFirstVert.size(); i++) {
+		glDrawArrays(GL_LINE_LOOP, countryFirstVert[i], countryVertCount[i]);
+	}
+	glBindVertexArray(0);
+	glUseProgram(0);
 }
+
+
+
 ////////////////////////////////////////////////////
 
 ///////// Funkcje do obsługi okna i modeli /////////
@@ -254,6 +327,29 @@ void loadModelToContext(std::string path, Core::RenderContext& context)
 ///////// Funkcja inicjalizująca /////////
 void init(GLFWwindow* window)
 {
+	// loading borders
+	loadCountryBoundaries("data/ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp");
+	std::cout << "Loaded " << countryBoundaries.size() << " country boundaries.\n";
+
+	std::vector<glm::vec3> vertices; // flattened array of vertifces
+	for (int i = 0; i < countryBoundaries.size(); i++) {
+		std::vector<glm::vec3>& country = countryBoundaries[i];
+		countryFirstVert.push_back((GLsizei)vertices.size()); // record first index of a country
+		countryVertCount.push_back((GLsizei)country.size()); // record size of a country (number of vertices)
+		vertices.insert(vertices.end(), country.begin(), country.end()); // insert into vertices the whole country
+	}
+
+	glGenVertexArrays(1, &bordersVAO);
+	glGenBuffers(1, &bordersVBO);
+
+	glBindVertexArray(bordersVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, bordersVBO);
+	glBufferData(GL_ARRAY_BUFFER,vertices.size() * sizeof(glm::vec3),vertices.data(),GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(glm::vec3),(void*)0);
+	glBindVertexArray(0);
+
 	glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
 		ImGuiIO& io = ImGui::GetIO();
 		ImGui_ImplGlfw_MouseButtonCallback(w, button, action, mods); // Forward to ImGui
