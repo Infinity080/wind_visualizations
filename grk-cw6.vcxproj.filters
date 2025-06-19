@@ -87,6 +87,9 @@
     <ClCompile Include="dependencies\shapefil\dbfopen.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Get_Wind_Data.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\objload.h">
@@ -157,6 +160,9 @@
     </ClInclude>
     <ClInclude Include="dependencies\shapefil\shapefil_private.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Get_Wind_Data.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,7 +1,33 @@
-﻿  main.cpp
-C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\shared\minwindef.h(130,9): warning C4005: 'APIENTRY': macro redefinition
-j:\Downloads\Projekt_GRK\src\ex_6_1.hpp(65,10): warning C4305: 'initializing': truncation from 'double' to 'float'
-j:\Downloads\Projekt_GRK\src\ex_6_1.hpp(186,13): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
-imgui.obj : warning LNK4075: ignoring '/EDITANDCONTINUE' due to '/INCREMENTAL:NO' specification
-LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
-  grk-cw6.vcxproj -> j:\Downloads\Projekt_GRK\Debug\projekt-grk.exe
+﻿  Get_Wind_Data.cpp
+C:\Users\Damia\Downloads\Projekt_GRK\src\Get_Wind_Data.cpp(14,24): warning C4996: 'localtime': This function or variable may be unsafe. Consider using localtime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  main.cpp
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\shared\minwindef.h(130,9): warning C4005: "APIENTRY": ponowna definicja makra
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+      C:\Users\Damia\Downloads\Projekt_GRK\dependencies\glfw-3.3.8.bin.WIN32\include\GLFW\glfw3.h(123,11):
+      zobacz poprzednią definicję „APIENTRY”
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(142,10): warning C4305: "inicjowanie": obcięcie z "double" do "float"
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(162,40): warning C4244: "-=": konwersja z "double" do "float", możliwa utrata danych
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(274,13): warning C4244: "inicjowanie": konwersja z "double" do "float", możliwa utrata danych
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(296,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(341,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(391,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(392,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+  Generowanie kodu...
+dbfopen.obj : warning LNK4075: zignorowano opcję „/EDITANDCONTINUE” z powodu określenia opcji „/INCREMENTAL:NO”
+LINK : warning LNK4098: domyślna biblioteka „MSVCRT” powoduje konflikt z innymi bibliotekami; użyj opcji /NODEFAULTLIB:biblioteka
+  grk-cw6.vcxproj -> C:\Users\Damia\Downloads\Projekt_GRK\Debug\projekt-grk.exe

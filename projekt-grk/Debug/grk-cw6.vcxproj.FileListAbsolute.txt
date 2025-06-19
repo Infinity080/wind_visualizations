@@ -1,0 +1,4 @@
+C:\Users\Damia\Downloads\Projekt_GRK\Debug\cpr.dll
+C:\Users\Damia\Downloads\Projekt_GRK\Debug\libcurl-d.dll
+C:\Users\Damia\Downloads\Projekt_GRK\Debug\zlibd1.dll
+C:\Users\Damia\Downloads\Projekt_GRK\projekt-grk\Debug\grk-cw6.vcxproj.Up2Date

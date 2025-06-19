@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cmath>
 
+
 #include "Shader_Loader.h"
 #include "Render_Utils.h"
 #include "Texture.h"
@@ -15,6 +16,11 @@
 #include <assimp/postprocess.h>
 #include <string>
 #include "shapefil.h"
+
+#include "Get_Wind_Data.h"
+
+
+
 
 ///////// Inicjalizacje zmiennych //////////
 // Inicjalizacja zmiennych dla tekstur
@@ -452,6 +458,13 @@ void init(GLFWwindow* window)
 	}
 
 	std::cout << "Inicjalizacja zakonczona." << std::endl;
+
+	// Globalne dane o wietrze
+	std::cout << "Ladowanie globalnych danych o wietrze" << std::endl;
+	// Test
+	std::string dane = GetWindDataGlobal();
+	std::string dane2 = GetWindData({ "52.23", "50.06" }, { "21.01", "19.94" });
+
 }
 
 ///////// Czyszczenie po zamknięciu /////////
