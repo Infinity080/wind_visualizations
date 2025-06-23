@@ -40,6 +40,7 @@ GLuint programCloud; // Program do rysowania chmur
 Core::Shader_Loader shaderLoader;
 	
 Core::RenderContext sphereContext;
+Core::RenderContext arrowContext;
 
 // Zmienne kamery
 glm::vec3 cameraPos = glm::vec3(-6.f, 0, 0);
@@ -71,6 +72,9 @@ glm::mat4 planetModelMatrix = glm::scale(glm::mat4(1.0f), planetScale);
 
 float pointRadiusModel = pointRadius / planetScale.x;
 
+float arrowSize = 0.005f;
+float arrowScaleModel = arrowSize * modelRadius / planetRadius;
+	
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
 	float lon = glm::radians(lonInput);
@@ -212,6 +216,23 @@ void drawPoint(float lat, float lon, glm::vec3 color) {
 
 	drawObjectColor(sphereContext, model, color);
 }
+void drawArrow(float latInput, float lonInput, float rotation, glm::vec3 color) {
+	glm::vec3 normal = glm::normalize(latLonToXYZ(latInput, lonInput)); // wektor normalny do planety
+	glm::vec3 point = normal * (modelRadius + 1.0f); // punkt strzałki
+
+	glm::vec3 Y = glm::normalize(glm::cross(glm::vec3(0, 1, 0), normal));
+	glm::vec3 X = glm::normalize(glm::cross(normal, Y));
+
+	float alpha = glm::radians(rotation);
+	glm::vec3 rot = glm::normalize(X * glm::cos(alpha) + Y * glm::sin(alpha)); // wzór na rotację w płaszczyźnie
+
+	glm::mat4 modelMatrix = planetModelMatrix
+		* glm::translate(glm::mat4(1), point) // przesunięcie
+		* glm::mat4(glm::rotation(glm::vec3(0, 0, 1), rot)) // rotacja za pomocą kwaternionu
+		* glm::scale(glm::mat4(1), glm::vec3(arrowScaleModel)); // skalowanie
+
+	drawObjectColor(arrowContext, modelMatrix, color);
+}
 
 // Funkcja do rysowania obiektu z teksturą
 void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint colorTextureID, GLuint normalMapTextureID) {
@@ -309,6 +330,7 @@ void renderScene(GLFWwindow* window)
 	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f));//reverse the earth scaling
 
 	drawPoint(52.41f, 16.93f, glm::vec3(1.0f, 0.0f, 0.0f)); // Poznań
+	drawArrow(52.41f, 16.93f, 45.0f, glm::vec3(0.0f, 1.0f, 0)); // Poznań, rotated 45 degrees 
 
 	glUseProgram(program);
 	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, &bordersTransform[0][0]); // set shaders
@@ -359,7 +381,7 @@ void loadModelToContext(std::string path, Core::RenderContext& context)
 
 ///////// Funkcja inicjalizująca /////////
 void init(GLFWwindow* window)
-{
+{	
 	// loading borders
 	loadCountryBoundaries("data/ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp");
 	std::cout << "Loaded " << countryBoundaries.size() << " country boundaries.\n";
@@ -485,6 +507,8 @@ void init(GLFWwindow* window)
 	}
 
 	std::cout << "Inicjalizacja zakonczona." << std::endl;
+	// loading arrow model
+	loadModelToContext("./models/arrow.obj", arrowContext);
 
 	// Globalne dane o wietrze
 	std::cout << "Ladowanie globalnych danych o wietrze" << std::endl;
