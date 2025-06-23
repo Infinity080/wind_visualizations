@@ -62,6 +62,24 @@ std::vector<GLuint> countryFirstVert, countryVertCount;
 
 std::vector<std::vector<glm::vec3>> countryBoundaries;
 
+float planetRadius = 3.0f;       
+float modelRadius = 110.0f; 
+float pointRadius = 0.00015f;
+
+glm::vec3 planetScale = glm::vec3(planetRadius / modelRadius);
+glm::mat4 planetModelMatrix = glm::scale(glm::mat4(1.0f), planetScale);
+
+float pointRadiusModel = pointRadius / planetScale.x;
+
+glm::vec3 latLonToXYZ(float latInput, float lonInput) {
+	float lat = glm::radians(latInput);
+	float lon = glm::radians(lonInput);
+	float x = cos(lat) * cos(lon);
+	float y = sin(lat);
+	float z = -cos(lat) * sin(lon);
+	return glm::vec3(x, y, z);
+}
+
 ////////////////////////////////////////////////////
 	// Quick Guide for navigating through shapefiles:
 	/*
@@ -104,12 +122,10 @@ void loadCountryBoundaries(const std::string& filePath) {
 			for (int j = start; j < end; j++) {
 				double lon = country->padfX[j];
 				double lat = country->padfY[j];
-				float latRad = glm::radians((float)lat);
-				float lonRad = glm::radians((float)lon);
-
-				float x = cos(latRad) * cos(lonRad);
-				float y = sin(latRad);
-				float z = - cos(latRad) * sin(lonRad);
+				glm::vec3 coords = latLonToXYZ(lat, lon);
+				float x = coords[0];
+				float y = coords[1];
+				float z = coords[2];
 
 				shape.emplace_back(x, y, z); 
 			}
@@ -183,6 +199,18 @@ void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::v
 
 	Core::DrawContext(context);
 	glUseProgram(0);
+}
+
+void drawPoint(float lat, float lon, glm::vec3 color) {
+	glm::vec3 dir = latLonToXYZ(lat, lon);
+
+	glm::vec3 pos = dir * modelRadius;
+
+	glm::mat4 model = planetModelMatrix
+		* glm::translate(glm::mat4(1.0f), pos) // przesuwamy na powierzchnię
+		* glm::scale(glm::mat4(1.0f), glm::vec3(pointRadiusModel)); // zmniejszamy
+
+	drawObjectColor(sphereContext, model, color);
 }
 
 // Funkcja do rysowania obiektu z teksturą
@@ -273,15 +301,14 @@ void renderScene(GLFWwindow* window)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	float time = glfwGetTime();
 
-	// Macierz modelu dla planety
-	glm::mat4 planetModelMatrix = glm::scale(glm::vec3(3.0) / 110.0f);
-
 	// Rysowanie planety
 	drawObjectColor(sphereContext, planetModelMatrix, glm::vec3(1.7f, 1.7f, 2.55f));
 
 	// Drawing boundaries
 	glm::mat4 PerspectivexCamera = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f));//reverse the earth scaling
+
+	drawPoint(52.41f, 16.93f, glm::vec3(1.0f, 0.0f, 0.0f)); // Poznań
 
 	glUseProgram(program);
 	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, &bordersTransform[0][0]); // set shaders
@@ -538,7 +565,7 @@ void renderLoop(GLFWwindow* window) {
 		renderScene(window);
 
 		// Render ImGui
-		ImGui::Render();
+		ImGui::Render(); 
 		
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		
