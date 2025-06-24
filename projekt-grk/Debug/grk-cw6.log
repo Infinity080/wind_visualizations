@@ -6,25 +6,34 @@ C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\shared\minwindef.h(1
       C:\Users\Damia\Downloads\Projekt_GRK\dependencies\glfw-3.3.8.bin.WIN32\include\GLFW\glfw3.h(123,11):
       zobacz poprzednią definicję „APIENTRY”
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(142,10): warning C4305: "inicjowanie": obcięcie z "double" do "float"
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(147,41): warning C4244: "argument": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(162,40): warning C4244: "-=": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(147,36): warning C4244: "argument": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(274,13): warning C4244: "inicjowanie": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(180,10): warning C4305: "inicjowanie": obcięcie z "double" do "float"
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(296,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(200,40): warning C4244: "-=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(341,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(396,19): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(391,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(505,13): warning C4244: "inicjowanie": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(392,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(527,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(576,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(626,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(627,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
   Generowanie kodu...

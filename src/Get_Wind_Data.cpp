@@ -1,10 +1,10 @@
 #include "Get_Wind_Data.h"
 
-std::vector<std::string> global_latitudes = { "52.23", "50.06" };
-std::vector<std::string> global_longitudes = { "21.01", "19.94" };
+std::vector<std::string> global_latitudes;
+std::vector<std::string> global_longitudes;
 
-int days_before = 7; // Maks. 7 dni (zalecane)
-int days_after = 7; // Maks 90 dni
+int days_before = 1; // Maks. 7 dni (zalecane)
+int days_after = 1; // Maks 90 dni
 
 // Funkcja do formatowania daty pocz¹tkowej i koñcowej do requesta
 std::string GetFormattedDate(int offset_days) {
@@ -85,10 +85,17 @@ std::string GetWindDataGlobal() {
     const char* cacheFile = "global_wind_data_cache.json";
 
     // Jeœli plik cache nie istnieje lub jest starszy ni¿ 1 godzina, pobierz dane z API
+    /*
     if (!fs::exists(cacheFile) ||
         (fs::file_time_type::clock::now() - fs::last_write_time(cacheFile)) > std::chrono::hours(1)) {
         return FetchWindDataGlobal();
     }
+    */
+
+    if (!fs::exists(cacheFile) ||
+        (fs::file_time_type::clock::now() - fs::last_write_time(cacheFile)) > std::chrono::milliseconds(1)) {
+    return FetchWindDataGlobal();
+}
 
     // Otwórz plik cache
     std::ifstream cache(cacheFile);
@@ -104,15 +111,55 @@ std::string GetWindDataGlobal() {
     return buffer.str();
 }
 
+// Funkcja do pobierania danych o wietrze dla konkretnych wspó³rzêdnych
+std::string GetWindData(const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes) {
+    if (latitudes.empty() || longitudes.empty() || latitudes.size() != longitudes.size()) {
+        throw std::invalid_argument("Przekazano b³êdne wspó³rzêdne geograficzne do funkcji GetWindData");
+    }
+
+    // Przygotowanie wspó³rzêdnych do requesta 
+    std::string lat_str, lon_str;
+    for (size_t i = 0; i < latitudes.size(); ++i) {
+        if (i > 0) {
+            lat_str += ",";
+            lon_str += ",";
+        }
+        lat_str += latitudes[i];
+        lon_str += longitudes[i];
+    }
+
+    std::string start_date = GetFormattedDate(-days_before);
+    std::string end_date = GetFormattedDate(days_after);
+
+    // Wysy³anie zapytania do API Open Meteo
+    auto response = cpr::Get(cpr::Url{ "https://api.open-meteo.com/v1/forecast" },
+        cpr::Parameters{
+            {"latitude", lat_str},
+            {"longitude", lon_str},
+            {"hourly", "wind_direction_180m,wind_direction_120m,wind_direction_80m,"
+                      "wind_direction_10m,wind_speed_180m,wind_speed_120m,"
+                      "wind_speed_80m,wind_speed_10m,wind_gusts_10m"},
+            {"start_date", start_date},
+            {"end_date", end_date}
+        });
+
+    // Zapisywanie odpowiedzi do cache
+    if (response.status_code == 200) {
+        return response.text;
+    }
+    return "";
+}
+
+/*
 // Funkcja do cachowania danych o wietrze dla konkretnych wspó³rzêdnych
 void CacheWindData(const std::string& data,
     const std::vector<std::string>& latitudes,
     const std::vector<std::string>& longitudes)
 {
     const char* cacheFile = "wind_data_cache.json";
-    json cache_data = json::array();
+    json cache_data;
 
-    // Jeœli plik istnieje, wczytaj dane
+    // Wczytaj istniej¹ce dane z cache, jeœli istniej¹
     if (fs::exists(cacheFile)) {
         std::ifstream existing(cacheFile);
         if (existing.is_open()) {
@@ -120,53 +167,25 @@ void CacheWindData(const std::string& data,
                 existing >> cache_data;
             }
             catch (...) {
-                cache_data = json::array();
+                cache_data = json::object(); // Jeœli nie uda³o siê sparsowaæ, utwórz nowy obiekt
             }
             existing.close();
         }
     }
 
-    // Parsowanie nowych danych z API
-    json new_data;
-    try {
-        new_data = json::parse(data);
-    }
-    catch (...) {
-        // Gdy parsowanie siê nie powiedzie, zapisz dane bezpoœrednio
-        std::ofstream fallback(cacheFile);
-        if (fallback.is_open()) {
-            fallback << data;
-        }
-        return;
-    }
+    // Parsuj nowe dane
+    json new_data = json::parse(data);
 
-    std::set<std::pair<double, double>> existing_coords;
-    for (auto& entry : cache_data) {
-        if (entry.contains("latitude") && entry.contains("longitude")) {
-            existing_coords.insert({ entry["latitude"].get<double>(), entry["longitude"].get<double>() });
-        }
-    }
-
-    // Dodaj lub nadpisz dane dla nowych wspó³rzêdnych
+    // Dla ka¿dej pary wspó³rzêdnych
     for (size_t i = 0; i < latitudes.size(); ++i) {
-        double lat = std::stod(latitudes[i]);
-        double lon = std::stod(longitudes[i]);
-        bool found = false;
-        for (auto& entry : cache_data) {
-            if (entry.contains("latitude") && entry.contains("longitude") &&
-                entry["latitude"].get<double>() == lat &&
-                entry["longitude"].get<double>() == lon) {
-                entry = new_data;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            cache_data.push_back(new_data);
-        }
+        // Tworzenie klucza dla pary wspó³rzêdnych
+        std::string key = latitudes[i] + "_" + longitudes[i];
+
+        // Zapisz lub nadpisz dane dla tych wspó³rzêdnych
+        cache_data[key] = new_data;
     }
 
-    // Zapisywanie zmodyfikowanych danych do cache
+    // Zapisz zaktualizowane dane do pliku
     std::ofstream cache(cacheFile);
     if (cache.is_open()) {
         cache << cache_data.dump(2);
@@ -214,49 +233,4 @@ std::string FetchWindData(const std::vector<std::string>& latitudes, const std::
     }
     return "";
 }
-
-// Funkcja do ³adowania danych o wietrze z cache lub API dla konkretnych wspó³rzêdnych
-std::string GetWindData(const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes) {
-    const char* cacheFile = "wind_data_cache.json";
-
-    // Jeœli plik cache nie istnieje lub jest starszy ni¿ 1 godzina, pobierz dane z API
-    if (!fs::exists(cacheFile) ||
-        (fs::file_time_type::clock::now() - fs::last_write_time(cacheFile)) > std::chrono::hours(1)) {
-        return FetchWindData(latitudes, longitudes);
-    }
-
-    // Otwórz plik cache
-    std::ifstream cache(cacheFile);
-
-	// Jeœli nie uda³o siê otworzyæ pliku cache, pobierz dane z API
-    if (!cache.is_open()) {
-        return FetchWindData(latitudes, longitudes);
-    }
-
-    try {
-        json cache_data;
-        cache >> cache_data;
-        cache.close();
-
-        // Sprawdzenie czy dane dla wszystkich wspó³rzêdnych s¹ w pliku cache
-        bool all_found = true;
-        for (size_t i = 0; i < latitudes.size(); ++i) {
-            std::string coord_key = "lat_" + latitudes[i] + "_lon_" + longitudes[i];
-            if (!cache_data.contains(coord_key)) {
-                all_found = false;
-                break;
-            }
-        }
-
-		// Jeœli nie znaleziono danych dla wszystkich wspó³rzêdnych, pobierz je z API
-        if (!all_found) {
-            return FetchWindData(latitudes, longitudes);
-        }
-
-        // Zwrócenie danych z pliku cache
-        return cache_data.dump();
-    }
-    catch (const json::exception&) {
-        return FetchWindData(latitudes, longitudes);
-    }
-}
+*/

@@ -34,6 +34,7 @@
     <ClCompile Include="src\Texture.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cpp\src\ex_6_1.hpp" />
     <ClInclude Include="dependencies\shapefil\shapefil.h" />
     <ClInclude Include="dependencies\shapefil\shapefil_private.h" />
     <ClInclude Include="imgui\imconfig.h" />

@@ -19,6 +19,8 @@
 
 #include "Get_Wind_Data.h"
 
+#include <nlohmann/json.hpp>
+
 
 
 
@@ -31,6 +33,23 @@ namespace texture {
 	GLuint cloudsT;
 }
 
+// Inicjalizacja zmiennych dla siatki
+struct Grid {
+	struct Point {
+		float lat;
+		float lon;
+		Point(float _lat, float _lon) : lat(_lat), lon(_lon) {}
+	};
+	std::vector<Point> points;  // Lista wszystkich punktów środkowych siatki
+	size_t numLat;             // Liczba punktów szerokości geograficznej
+	size_t numLon;             // Liczba punktów długości geograficznej
+};
+
+Grid grid;
+
+float gridTileSize = 10.0f; // Rozmiar pojedynczego kafelka siatki
+
+
 // Inicjalizacja zmiennych dla programow shaderow
 GLuint program; // Podstawowy program do rysowania kolorem
 GLuint programTex; // Program do rysowania z teksturą
@@ -38,7 +57,7 @@ GLuint programAtm; // Program do rysowania atmosfery
 GLuint programCloud; // Program do rysowania chmur
 
 Core::Shader_Loader shaderLoader;
-	
+
 Core::RenderContext sphereContext;
 Core::RenderContext arrowContext;
 
@@ -63,8 +82,8 @@ std::vector<GLuint> countryFirstVert, countryVertCount;
 
 std::vector<std::vector<glm::vec3>> countryBoundaries;
 
-float planetRadius = 3.0f;       
-float modelRadius = 110.0f; 
+float planetRadius = 3.0f;
+float modelRadius = 110.0f;
 float pointRadius = 0.00015f;
 
 glm::vec3 planetScale = glm::vec3(planetRadius / modelRadius);
@@ -74,7 +93,12 @@ float pointRadiusModel = pointRadius / planetScale.x;
 
 float arrowSize = 0.005f;
 float arrowScaleModel = arrowSize * modelRadius / planetRadius;
-	
+
+GLFWwindow* windowGlobal;
+
+std::string windData; // Lokalne dane o wietrze
+std::string windDataGlobal; // Globalne dane o wietrze
+
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
 	float lon = glm::radians(lonInput);
@@ -142,7 +166,7 @@ void loadCountryBoundaries(const std::string& filePath) {
 	SHPClose(handler);
 }
 
-///////// Funkcje do kamery //////////
+//////// Funkcje do kamery //////////
 glm::mat4 createCameraMatrix()
 {
 	float maxAngleY = glm::radians(89.0f);
@@ -216,7 +240,47 @@ void drawPoint(float lat, float lon, glm::vec3 color) {
 
 	drawObjectColor(sphereContext, model, color);
 }
+
+void drawPoint2D(float lat, float lon, glm::vec3 color) {
+	// Obliczenie pozycji 3D na powierzchni kuli
+	glm::vec3 worldPos = latLonToXYZ(lat, lon) * modelRadius;
+
+	// Przygotowanie VAO i VBO dla punktu
+	GLuint pointVAO, pointVBO;
+	glGenVertexArrays(1, &pointVAO);
+	glGenBuffers(1, &pointVBO);
+
+	glBindVertexArray(pointVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, pointVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3), &worldPos, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+
+	// Użycie shadera i ustawienie uniformów
+	glUseProgram(program);
+	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
+	glm::mat4 transformation = viewProjectionMatrix * planetModelMatrix;
+
+	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, (float*)&transformation);
+	glUniform3f(glGetUniformLocation(program, "color"), color.x, color.y, color.z);
+
+	// Ustawienie rozmiaru punktu i jego rysowanie
+	glPointSize(5.0f);
+	glDrawArrays(GL_POINTS, 0, 1);
+
+	// Czyszczenie
+	glBindVertexArray(0);
+	glDeleteVertexArrays(1, &pointVAO);
+	glDeleteBuffers(1, &pointVBO);
+	glUseProgram(0);
+}
+
 void drawArrow(float latInput, float lonInput, float rotation, glm::vec3 color) {
+	std::cout << "drawArrow called with: lat=" << latInput
+		<< ", lon=" << lonInput
+		<< ", rotation=" << rotation
+		<< ", scale=" << arrowScaleModel << std::endl;
 	glm::vec3 normal = glm::normalize(latLonToXYZ(latInput, lonInput)); // wektor normalny do planety
 	glm::vec3 point = normal * (modelRadius + 1.0f); // punkt strzałki
 
@@ -312,7 +376,147 @@ void drawObjectClouds(Core::RenderContext& context, glm::mat4 modelMatrix, GLuin
 
 	glUseProgram(0);
 }
+
+// Funkcja do rysowania strzałek wiatru
+void drawWindArrows(const std::vector<float>& latitudes, const std::vector<float>& longitudes) {
+	try {
+		// Debug danych wiatru
+		std::cout << "Próba rysowania strzałek. Dane wiatru: " << windData.substr(0, 100) << "...\n";
+
+		nlohmann::json windJson = nlohmann::json::parse(windData);
+		std::cout << "JSON zparsowany. Liczba punktów: " << windJson.size() << (windJson.size() == latitudes.size()) << std::endl;
+
+		glm::vec3 arrowColor(1.0f, 1.0f, 1.0f);
+		int timeIndex = 0;
+
+		// Debug informacji o siatce
+		std::cout << "Liczba szerokości: " << latitudes.size() << std::endl;
+		std::cout << "Liczba długości: " << longitudes.size() << std::endl;
+
+		for (size_t i = 0; i < latitudes.size(); ++i) {
+			for (size_t j = 0; j < longitudes.size(); ++j) {
+				float lat = latitudes[i];
+				float lon = longitudes[j];
+
+				int dataIndex = i * longitudes.size() + j;
+				if (dataIndex < windJson.size()) {
+					try {
+						float windDirection = windJson[dataIndex]["hourly"]["wind_direction_180m"][timeIndex];
+						float arrowAngle = 270.0f - windDirection;
+
+						// Debug dla pierwszej strzałki
+						if (i == 0 && j == 0) {
+							std::cout << "Rysowanie pierwszej strzałki: lat=" << lat
+								<< ", lon=" << lon << ", kierunek=" << windDirection
+								<< ", kąt=" << arrowAngle << std::endl;
+						}
+
+						drawArrow(lat, lon, arrowAngle, arrowColor);
+					}
+					catch (const std::exception& e) {
+						std::cout << "Błąd przy przetwarzaniu punktu [" << i << "][" << j << "]: " << e.what() << std::endl;
+					}
+				}
+			}
+		}
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Błąd podczas przetwarzania danych o wietrze: " << e.what() << std::endl;
+	}
+}
 ////////////////////////////////////////////////////
+
+///////// Funkcje do siatki //////////
+// Funkcja do tworzenia siatki składającej się z kafelków
+Grid createGrid(float tileSize) {
+	Grid grid;
+	float halfTile = tileSize / 2.0f;
+
+	// Tymczasowe wektory do przechowywania wartości lat i lon
+	std::vector<float> lats;
+	std::vector<float> lons;
+
+	// Generowanie wartości szerokości i długości
+	for (float lat = -90.0f + halfTile; lat < 90.0f; lat += tileSize) {
+		lats.push_back(lat);
+	}
+
+	for (float lon = -180.0f + halfTile; lon < 180.0f; lon += tileSize) {
+		lons.push_back(lon);
+	}
+
+	// Zapisanie liczby punktów w każdym wymiarze
+	grid.numLat = lats.size();
+	grid.numLon = lons.size();
+
+	// Generowanie wszystkich kombinacji punktów
+	grid.points.reserve(lats.size() * lons.size()); // Optymalizacja pamięci
+	for (float lat : lats) {
+		for (float lon : lons) {
+			grid.points.emplace_back(lat, lon);
+		}
+	}
+
+	return grid;
+}
+
+// Funkcja do rysowania punktów (środków) siatki
+void drawGridDots(const std::vector<float>& latitudes, const std::vector<float>& longitudes) {
+
+	// Kolor punktów
+	glm::vec3 pointColor(1.0f, 1.0f, 1.0f);
+
+	// Rysowanie punktów
+	for (size_t i = 0; i < latitudes.size(); ++i) {
+		for (size_t j = 0; j < longitudes.size(); ++j) {
+			drawPoint2D(latitudes[i], longitudes[j], pointColor);
+		}
+	}
+}
+////////////////////////////////////////////////////
+
+// Funkcja do pobierania danych o wietrze
+void updateWindData() {
+    std::vector<std::string> latitudes;
+    std::vector<std::string> longitudes;
+
+	// Wyznaczenie wszystkich szerokości i długości geograficznych z siatki
+    // Konwersja szerokości geograficznych
+    for (const float& lat : grid.latitudes) {
+        latitudes.push_back(std::to_string(lat));
+    }
+
+    // Konwersja długości geograficznych
+    for (const float& lon : grid.longitudes) {
+        longitudes.push_back(std::to_string(lon));
+    }
+
+    // Aktualizacja globalnej zmiennej windData
+    windData = GetWindData(latitudes, longitudes);
+
+	// Debug info
+	std::cout << "Pobrano dane z API (" << windData.length() << ")" << std::endl;
+}
+
+void updateWindDataGlobal() {
+	global_latitudes.clear();
+	global_longitudes.clear();
+	// Konwersja szerokości geograficznych
+	for (const float& lat : grid.latitudes) {
+		global_latitudes.push_back(std::to_string(lat));
+	}
+
+	// Konwersja długości geograficznych
+	for (const float& lon : grid.longitudes) {
+		global_longitudes.push_back(std::to_string(lon));
+	}
+
+	// Aktualizacja globalnej zmiennej windData
+	windDataGlobal = GetWindDataGlobal();
+
+	// Debug info
+	std::cout << "Pobrano dane z API (" << windDataGlobal.length() << ")" << std::endl;
+}
 
 
 ///////// Główna funkcja renderująca /////////
@@ -345,8 +549,12 @@ void renderScene(GLFWwindow* window)
 	for (int i = 0; i < countryFirstVert.size(); i++) {
 		glDrawArrays(GL_LINE_LOOP, countryFirstVert[i], countryVertCount[i]);
 	}
+
 	glBindVertexArray(0);
 	glUseProgram(0);
+
+	drawGridDots(grid.latitudes, grid.longitudes);
+	drawWindArrows(grid.latitudes, grid.longitudes);
 }
 
 
@@ -514,8 +722,11 @@ void init(GLFWwindow* window)
 	std::cout << "Ladowanie globalnych danych o wietrze" << std::endl;
 	// Test
 	std::string dane = GetWindDataGlobal();
-	std::string dane2 = GetWindData({ "52.23", "50.06" }, { "21.01", "19.94" });
+	
 
+	grid = createGrid(gridTileSize);
+
+	updateWindData(); // Pobieranie danych o wietrze po utworzeniu siatki
 }
 
 ///////// Czyszczenie po zamknięciu /////////
@@ -566,6 +777,7 @@ void processInput(GLFWwindow* window)
 void renderLoop(GLFWwindow* window) {
 	while (!glfwWindowShouldClose(window))
 	{
+		windowGlobal = window;
 		processInput(window);
 
 
@@ -574,13 +786,27 @@ void renderLoop(GLFWwindow* window) {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::SetNextWindowSize(ImVec2(120, 200), ImGuiCond_Always);
+		ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_Always);
 		ImGui::Begin("Sterowanie");
 
 		ImGui::PushItemWidth(-1);
 		// Slidery
 		ImGui::SliderFloat("angleSpeed", &angleSpeed, 0.0f, 0.3f);
 		ImGui::SliderFloat("zoomSpeed", &moveSpeed, 0.0f, 0.3f);
+
+		float pointRadiusSlider = pointRadius / 0.00015f; // Przeskalowanie do zakresu 0.0 - 1.0
+		ImGui::SliderFloat("pointRadius", &pointRadiusSlider, 0.0f, 1.0f);
+		pointRadius = pointRadiusSlider * 0.00015f; // Przeskalowanie z powrotem do oryginalnej wartości
+		pointRadiusModel = pointRadius / planetScale.x;
+
+		ImGui::SliderFloat("gridTileSize", &gridTileSize, 3.0f, 10.0f);
+		if (ImGui::Button("Zmień siatkę")) {
+			grid = createGrid(gridTileSize);
+			updateWindData(); // Aktualizacja danych o wietrze po zmianie siatki
+
+		}
+		
+
 		ImGui::PopItemWidth();
 
 		ImGui::End();

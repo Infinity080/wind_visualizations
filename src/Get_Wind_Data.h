@@ -14,11 +14,14 @@ extern std::vector<std::string> global_latitudes;
 extern std::vector<std::string> global_longitudes;
 
 std::string GetFormattedDate(int offset_days);
-void CacheWindDataGlobal(const std::string& data);
 
-std::string FetchWindDataGlobal();
 std::string GetWindDataGlobal();
+void CacheWindDataGlobal(const std::string& data);
+std::string FetchWindDataGlobal();
 
+std::string GetWindData(const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes);
+
+/*
 void CacheWindData(const std::string& data, const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes);
 std::string FetchWindData(const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes);
-std::string GetWindData(const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes);
+*/
