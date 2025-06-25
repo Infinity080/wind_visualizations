@@ -1,4 +1,5 @@
 #include "Get_Wind_Data.h"
+#include <iostream>
 
 std::vector<std::string> global_latitudes;
 std::vector<std::string> global_longitudes;
@@ -81,21 +82,16 @@ std::string FetchWindDataGlobal() {
 }
 
 // Funkcja do ³adowania danych o wietrze z cache lub API dla globalnych wspó³rzêdnych
+// Naprawiæ error 414 Request-URI Too Large
 std::string GetWindDataGlobal() {
     const char* cacheFile = "global_wind_data_cache.json";
 
     // Jeœli plik cache nie istnieje lub jest starszy ni¿ 1 godzina, pobierz dane z API
-    /*
     if (!fs::exists(cacheFile) ||
         (fs::file_time_type::clock::now() - fs::last_write_time(cacheFile)) > std::chrono::hours(1)) {
         return FetchWindDataGlobal();
     }
-    */
 
-    if (!fs::exists(cacheFile) ||
-        (fs::file_time_type::clock::now() - fs::last_write_time(cacheFile)) > std::chrono::milliseconds(1)) {
-    return FetchWindDataGlobal();
-}
 
     // Otwórz plik cache
     std::ifstream cache(cacheFile);
@@ -112,6 +108,7 @@ std::string GetWindDataGlobal() {
 }
 
 // Funkcja do pobierania danych o wietrze dla konkretnych wspó³rzêdnych
+// Naprawiæ error 414 Request-URI Too Large
 std::string GetWindData(const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes) {
     if (latitudes.empty() || longitudes.empty() || latitudes.size() != longitudes.size()) {
         throw std::invalid_argument("Przekazano b³êdne wspó³rzêdne geograficzne do funkcji GetWindData");
@@ -143,11 +140,13 @@ std::string GetWindData(const std::vector<std::string>& latitudes, const std::ve
             {"end_date", end_date}
         });
 
+    std::cout << "Request URL:" << response.url << std::endl;
+	std::cout << "Response Status Code: " << response.status_code << std::endl;
     // Zapisywanie odpowiedzi do cache
     if (response.status_code == 200) {
         return response.text;
     }
-    return "";
+    throw std::runtime_error("Wyst¹pi³ b³¹d podczas pobierania danych z API");
 }
 
 /*
