@@ -16,19 +16,19 @@ C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(181,10): warning C4305: "ini
 C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(201,40): warning C4244: "-=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(547,13): warning C4244: "inicjowanie": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(513,13): warning C4244: "inicjowanie": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(569,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(535,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(615,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(581,20): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(665,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(631,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(666,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\ex_6_1.hpp(632,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
 dbfopen.obj : warning LNK4075: zignorowano opcję „/EDITANDCONTINUE” z powodu określenia opcji „/INCREMENTAL:NO”

@@ -42,7 +42,7 @@ struct Grid {
 
 Grid grid;
 
-float gridTileSize = 50.0f; // Rozmiar pojedynczego kafelka siatki
+float gridTileSize = 11.0f; // Rozmiar pojedynczego kafelka siatki - docelowo 1.0 lub 0.5f
 
 
 // Inicjalizacja zmiennych dla programow shaderow

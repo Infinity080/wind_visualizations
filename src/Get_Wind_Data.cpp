@@ -78,7 +78,24 @@ std::string FetchWindDataGlobal() {
         CacheWindDataGlobal(response.text);
         return response.text;
     }
-    return "";
+    else {
+        std::cout << ("Wyst¹pi³ b³¹d podczas pobierania danych z API. Wykorzystany zostanie backupowy plik JSON") << std::endl;
+
+        // Jeœli wyst¹pi³ b³¹d, spróbuj odczytaæ dane z backupowego pliku JSON
+        nlohmann::json backup_data;
+        const char* backupFile = "backup_wind_data.json";
+        std::ifstream backup(backupFile);
+
+        if (backup.is_open()) {
+            backup >> backup_data;
+            return backup_data.dump();
+        }
+        else {
+            throw std::runtime_error("Nie uda³o siê odczytaæ backupowego pliku JSON");
+        }
+
+    }
+    throw std::runtime_error("Nie uda³o siê odczytaæ danych z API ani pliku backup");
 }
 
 // Funkcja do ³adowania danych o wietrze z cache lub API dla globalnych wspó³rzêdnych
@@ -109,6 +126,7 @@ std::string GetWindDataGlobal() {
 
 // Funkcja do pobierania danych o wietrze dla konkretnych wspó³rzêdnych
 // Naprawiæ error 414 Request-URI Too Large
+/*
 std::string GetWindData(const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes) {
     if (latitudes.empty() || longitudes.empty() || latitudes.size() != longitudes.size()) {
         throw std::invalid_argument("Przekazano b³êdne wspó³rzêdne geograficzne do funkcji GetWindData");
@@ -147,6 +165,108 @@ std::string GetWindData(const std::vector<std::string>& latitudes, const std::ve
         return response.text;
     }
     throw std::runtime_error("Wyst¹pi³ b³¹d podczas pobierania danych z API");
+}
+*/
+
+// Funkcja do pobierania danych o wietrze dla konkretnych wspó³rzêdnych (BATCH) Maks. d³ugoœæ URL ~6700 znaków
+std::string GetWindData(const std::vector<std::string>& latitudes, const std::vector<std::string>& longitudes) {
+    if (latitudes.empty() || longitudes.empty() || latitudes.size() != longitudes.size()) {
+        throw std::invalid_argument("Przekazano bledne wspolrzedne geograficzne do funkcji GetWindData");
+    }
+    size_t max_url_length = 6700;
+    const std::string base_url = "https://api.open-meteo.com/v1/forecast";
+    const std::string hourly_param =
+        "wind_direction_180m,wind_direction_120m,wind_direction_80m,"
+        "wind_direction_10m,wind_speed_180m,wind_speed_120m,"
+        "wind_speed_80m,wind_speed_10m,wind_gusts_10m";
+    std::string start_date = GetFormattedDate(-days_before);
+    std::string end_date = GetFormattedDate(days_after);
+
+    nlohmann::json full_json = nlohmann::json::array();
+    size_t n = latitudes.size();
+    size_t i = 0;
+
+
+    while (i < n) {
+        // Budujemy batch punktów
+        std::string lat_str;
+        std::string lon_str;
+        size_t batch_start = i;
+
+        for (; i < n; ++i) {
+            const std::string& next_lat = latitudes[i];
+            const std::string& next_lon = longitudes[i];
+
+            std::string temp_lat = lat_str.empty() ? next_lat : lat_str + "," + next_lat;
+            std::string temp_lon = lon_str.empty() ? next_lon : lon_str + "," + next_lon;
+
+            // Tworzenie URL do sprawdzenia d³ugoœci
+            std::string test_url = base_url
+                + "?latitude=" + temp_lat
+                + "&longitude=" + temp_lon
+                + "&hourly=" + hourly_param
+                + "&start_date=" + start_date
+                + "&end_date=" + end_date;
+
+            // Jeœli przekroczono limit, to nie dodawaj tego punktu do batcha
+            if (test_url.size() > max_url_length) {
+                break;
+            }
+
+            lat_str = std::move(temp_lat);
+            lon_str = std::move(temp_lon);
+        }
+
+        // Wysy³amy request dla aktualnego batcha
+        auto response = cpr::Get(
+            cpr::Url{ base_url },
+            cpr::Parameters{
+                {"latitude", lat_str},
+                {"longitude", lon_str},
+                {"hourly", hourly_param},
+                {"start_date", start_date},
+                {"end_date", end_date}
+            }
+        );
+
+
+        if (response.status_code != 200) {
+            std::cout << response.status_code << (" - Wystapil blad podczas pobierania danych z API. Wykorzystany zostanie backupowy plik JSON") << std::endl;
+
+            // Jeœli wyst¹pi³ b³¹d, spróbuj odczytaæ dane z backupowego pliku JSON
+            nlohmann::json backup_data;
+            const char* backupFile = "backup_wind_data.json";
+            std::ifstream backup(backupFile);
+
+            if (backup.is_open()) {
+                backup >> backup_data;
+                return backup_data.dump();
+            }
+            else {
+                throw std::runtime_error("Nie udalo sie odczytac danych z API ani pliku backup");
+            }
+        }
+
+        nlohmann::json batch_json = nlohmann::json::parse(response.text);
+        if (!batch_json.is_array()) {
+            throw std::runtime_error("Oczekiwano pliku JSON w responsie");
+        }
+        for (auto& element : batch_json) {
+            full_json.push_back(element);
+        }
+    }
+
+    std::cout << "Ilosc requestow: " << i << std::endl;
+
+    std::string output_filename = "wind_data_cache.json";
+    std::ofstream cache(output_filename);
+    if (!cache.is_open()) {
+        throw std::runtime_error("Nie udalo sie otworzyc pliku JSON do zapisu danych");
+    }
+    cache << full_json.dump(2);
+    cache.close();
+
+    return full_json.dump(2);
 }
 
 /*
