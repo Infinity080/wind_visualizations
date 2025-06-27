@@ -71,6 +71,7 @@
     <None Include="shaders\shader_5_1_pbr.vert" />
     <None Include="shaders\shader_5_1_tex.frag" />
     <None Include="shaders\shader_5_1_tex.vert" />
+    <None Include="shader_arrow_instanced.vert" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3952C396-B1C6-44CD-96DD-C1AC15D32978}</ProjectGuid>
@@ -85,6 +86,9 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SolutionDirForwardSlash>$(SolutionDir.Replace('\', '/'))</SolutionDirForwardSlash>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>

@@ -23,7 +23,6 @@
 
 
 
-
 ///////// Inicjalizacje zmiennych //////////
 // Inicjalizacja zmiennych dla tekstur
 namespace texture {
@@ -50,11 +49,14 @@ GLuint program; // Podstawowy program do rysowania kolorem
 GLuint programTex; // Program do rysowania z teksturą
 GLuint programAtm; // Program do rysowania atmosfery
 GLuint programCloud; // Program do rysowania chmur
+GLuint programArrowInstanced; // Program do rysowania strzałek za pomocą instancingu
 
 Core::Shader_Loader shaderLoader;
 
 Core::RenderContext sphereContext;
 Core::RenderContext arrowContext;
+GLuint arrowInstanceVBO; // VBO dla danych instancji strzałek (macierze modelu)
+std::vector<glm::mat4> arrowModelMatrices; // Wektor macierzy modelu dla każdej strzałki
 
 // Zmienne kamery
 glm::vec3 cameraPos = glm::vec3(-6.f, 0, 0);
@@ -93,6 +95,8 @@ GLFWwindow* windowGlobal;
 
 std::string windData; // Lokalne dane o wietrze
 std::string windDataGlobal; // Globalne dane o wietrze
+std::string date = GetFormattedDate(0); // Dzisiejsza data
+
 
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
@@ -120,19 +124,19 @@ void loadCountryBoundaries(const std::string& filePath) {
 	int n;
 	int Type; // polygon, line, point
 	double temp1[4], temp2[4];
-	SHPGetInfo(handler, &n, &Type, temp1, temp2); 
+	SHPGetInfo(handler, &n, &Type, temp1, temp2);
 
 	for (int i = 0; i < n; i++) // loop over countries
-	{ 
+	{
 		SHPObject* country = SHPReadObject(handler, i);
 
 		// we need to loop over each part if it has more than 1
 		int parts = country->nParts;
-		for (int j = 0; j < parts; j++ )
-		{ 
+		for (int j = 0; j < parts; j++)
+		{
 			int start = country->panPartStart[j];
 			int end;
-			if (j + 1 < parts) 
+			if (j + 1 < parts)
 			{
 				end = country->panPartStart[j + 1];
 			}
@@ -150,7 +154,7 @@ void loadCountryBoundaries(const std::string& filePath) {
 				float y = coords[1];
 				float z = coords[2];
 
-				shape.emplace_back(x, y, z); 
+				shape.emplace_back(x, y, z);
 			}
 
 			if (shape.size() > 1)
@@ -369,45 +373,75 @@ void drawObjectClouds(Core::RenderContext& context, glm::mat4 modelMatrix, GLuin
 	glUseProgram(0);
 }
 
-// Funkcja do rysowania strzałek wiatru
-void drawWindArrows() {
+// Funkcja do aktualizacji danych o strzałkach wiatru dla renderingu instancyjnego
+void updateWindArrowData() {
+	arrowModelMatrices.clear();
+	if (windData.empty()) {
+		return;
+	}
+
 	try {
-		// Debug danych wiatru
-		// std::cout << "Próba rysowania strzałek. Dane wiatru: " << windData.substr(0, 100) << "...\n";
-
 		nlohmann::json windJson = nlohmann::json::parse(windData);
-		// std::cout << "JSON zparsowany. Liczba punktów: " << windJson.size() << std::endl;
-
-		glm::vec3 arrowColor(1.0f, 1.0f, 1.0f);
 		int timeIndex = 0;
 
+		arrowModelMatrices.reserve(grid.numTiles);
+
 		for (size_t i = 0; i < grid.numTiles; ++i) {
-			float lat = grid.latitudes[i];
-			float lon = grid.longitudes[i];
+			try {
+				float lat = grid.latitudes[i];
+				float lon = grid.longitudes[i];
+				float windDirection = windJson[i]["hourly"]["wind_direction_180m"][timeIndex];
+				float arrowAngle = 270.0f - windDirection;
 
-					try {
-						float windDirection = windJson[i]["hourly"]["wind_direction_180m"][timeIndex];
-						float arrowAngle = 270.0f - windDirection;
+				glm::vec3 normal = glm::normalize(latLonToXYZ(lat, lon));
+				glm::vec3 point = normal * (modelRadius + 1.0f);
+				glm::vec3 Y = glm::normalize(glm::cross(glm::vec3(0, 1, 0), normal));
+				glm::vec3 X = glm::normalize(glm::cross(normal, Y));
+				float alpha = glm::radians(arrowAngle);
+				glm::vec3 rot = glm::normalize(X * glm::cos(alpha) + Y * glm::sin(alpha));
+				glm::mat4 modelMatrix = planetModelMatrix
+					* glm::translate(glm::mat4(1), point)
+					* glm::mat4(glm::rotation(glm::vec3(0, 0, 1), rot))
+					* glm::scale(glm::mat4(1), glm::vec3(arrowScaleModel));
 
-						// Debug dla pierwszej strzałki
-						/*
-						if (i == 0) {
-							std::cout << "Rysowanie pierwszej strzalki: lat=" << lat
-								<< ", lon=" << lon << ", kierunek=" << windDirection
-								<< ", kat=" << arrowAngle << std::endl;
-						}
-						*/
-
-						drawArrow(lat, lon, arrowAngle, arrowColor);
-					}
-					catch (const std::exception& e) {
-						std::cout << "Błąd przy przetwarzaniu punktu [" << i << "]: " << e.what() << std::endl;
-					}
-				}
+				arrowModelMatrices.push_back(modelMatrix);
+			}
+			catch (const std::exception& e) {
+				// Pominięcie punktu w przypadku błędu, można dodać logowanie
+			}
 		}
+	}
 	catch (const std::exception& e) {
 		std::cerr << "Błąd podczas przetwarzania danych o wietrze: " << e.what() << std::endl;
+		return;
 	}
+
+	// Aktualizacja VBO z macierzami modeli
+	glBindBuffer(GL_ARRAY_BUFFER, arrowInstanceVBO);
+	glBufferData(GL_ARRAY_BUFFER, arrowModelMatrices.size() * sizeof(glm::mat4), arrowModelMatrices.data(), GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+// Funkcja do rysowania strzałek wiatru
+void drawWindArrows() {
+	if (arrowModelMatrices.empty()) {
+		return;
+	}
+
+	GLuint prog = programArrowInstanced;
+	glUseProgram(prog);
+
+	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
+	glUniformMatrix4fv(glGetUniformLocation(prog, "viewProjectionMatrix"), 1, GL_FALSE, (float*)&viewProjectionMatrix);
+	glUniform3f(glGetUniformLocation(prog, "color"), 1.0f, 1.0f, 1.0f);
+	glUniform3f(glGetUniformLocation(prog, "lightPos"), -5.f, 3.f, 3.f);
+	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
+
+	glBindVertexArray(arrowContext.vertexArray);
+	glDrawElementsInstanced(GL_TRIANGLES, arrowContext.size, GL_UNSIGNED_INT, 0, arrowModelMatrices.size());
+	glBindVertexArray(0);
+
+	glUseProgram(0);
 }
 ////////////////////////////////////////////////////
 
@@ -462,23 +496,24 @@ void drawGridDots() {
 
 // Funkcja do pobierania danych o wietrze
 void updateWindData() {
-    std::vector<std::string> latitudes;
-    std::vector<std::string> longitudes;
+	std::vector<std::string> latitudes;
+	std::vector<std::string> longitudes;
 
 	// Wyznaczenie wszystkich szerokości i długości geograficznych z siatki
-    // Konwersja szerokości geograficznych
-    for (const float& lat : grid.latitudes) {
-        latitudes.push_back(std::to_string(lat));
-    }
+	// Konwersja szerokości geograficznych
+	for (const float& lat : grid.latitudes) {
+		latitudes.push_back(std::to_string(lat));
+	}
 
-    // Konwersja długości geograficznych
-    for (const float& lon : grid.longitudes) {
-        longitudes.push_back(std::to_string(lon));
-    }
+	// Konwersja długości geograficznych
+	for (const float& lon : grid.longitudes) {
+		longitudes.push_back(std::to_string(lon));
+	}
 
-    // Aktualizacja globalnej zmiennej windData
+	// Aktualizacja globalnej zmiennej windData
 	//std::cout << "Wysylanie danych do API: " << latitudes[0] << "; " << longitudes[0] << std::endl;
-    windData = GetWindData(latitudes, longitudes);
+	windData = ""; // GetWindData(latitudes, longitudes);
+	updateWindArrowData();
 
 	// Debug info
 	//std::cout << "Pobrano dane z API (" << windData.length() << ")" << std::endl;
@@ -498,7 +533,7 @@ void updateWindDataGlobal() {
 	}
 
 	// Aktualizacja globalnej zmiennej windData
-	windDataGlobal = GetWindDataGlobal();
+	windDataGlobal = GetWindDataGlobal(date);
 
 	// Debug info
 	// std::cout << "Pobrano dane z API (" << windDataGlobal.length() << ")" << std::endl;
@@ -526,9 +561,9 @@ void renderScene(GLFWwindow* window)
 	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, &bordersTransform[0][0]); // set shaders
 	glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_FALSE, &planetModelMatrix[0][0]);
 	// set values in shaders
-	glUniform3f(glGetUniformLocation(program, "color"), 0.0f, 0.0f, 2.55f); 
+	glUniform3f(glGetUniformLocation(program, "color"), 0.0f, 0.0f, 2.55f);
 	glUniform3f(glGetUniformLocation(program, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
-	
+
 	// draw the actual lines
 	glLineWidth(2.0f);
 	glBindVertexArray(bordersVAO);
@@ -572,7 +607,7 @@ void loadModelToContext(std::string path, Core::RenderContext& context)
 
 ///////// Funkcja inicjalizująca /////////
 void init(GLFWwindow* window)
-{	
+{
 	// loading borders
 	loadCountryBoundaries("data/ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp");
 	std::cout << "Loaded " << countryBoundaries.size() << " country boundaries.\n";
@@ -590,10 +625,10 @@ void init(GLFWwindow* window)
 
 	glBindVertexArray(bordersVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, bordersVBO);
-	glBufferData(GL_ARRAY_BUFFER,vertices.size() * sizeof(glm::vec3),vertices.data(),GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
 
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(glm::vec3),(void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
 	glBindVertexArray(0);
 
 	glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
@@ -640,12 +675,12 @@ void init(GLFWwindow* window)
 
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glEnable(GL_DEPTH_TEST);
-	
+
 	// Podstawowy shader
 	program = shaderLoader.CreateProgram("shaders/shader_5_1.vert", "shaders/shader_5_1.frag");
-	if (program == 0) { 
-		std::cerr << "Blad ladowania podstawowych shaderow!" << std::endl; 
-		exit(1); 
+	if (program == 0) {
+		std::cerr << "Blad ladowania podstawowych shaderow!" << std::endl;
+		exit(1);
 	}
 
 	// Shader modeli z teksturą
@@ -664,8 +699,14 @@ void init(GLFWwindow* window)
 
 	// Shader chmur
 	programCloud = shaderLoader.CreateProgram("shaders/shader_5_1_cloud.vert", "shaders/shader_5_1_cloud.frag");
-	if (programAtm == 0) {
+	if (programCloud == 0) {
 		std::cerr << "Blad ladowania shaderow chmur!" << std::endl;
+		exit(1);
+	}
+
+	programArrowInstanced = shaderLoader.CreateProgram("shaders/shader_arrow_instanced.vert", "shaders/shader_5_1.frag");
+	if (programArrowInstanced == 0) {
+		std::cerr << "Blad ladowania shaderow instancingu strzalek!" << std::endl;
 		exit(1);
 	}
 
@@ -701,15 +742,38 @@ void init(GLFWwindow* window)
 	// loading arrow model
 	loadModelToContext("./models/arrow.obj", arrowContext);
 
+	// Konfiguracja renderingu instancyjnego dla strzałek
+	glGenBuffers(1, &arrowInstanceVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, arrowInstanceVBO);
+	glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW); // Pusta na początku
+
+	glBindVertexArray(arrowContext.vertexArray);
+	glBindBuffer(GL_ARRAY_BUFFER, arrowInstanceVBO);
+
+	// Ustawienie wskaźników atrybutów dla macierzy modelu (mat4)
+	glEnableVertexAttribArray(3);
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
+	glEnableVertexAttribArray(4);
+	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
+	glEnableVertexAttribArray(5);
+	glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
+	glEnableVertexAttribArray(6);
+	glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+
+	glVertexAttribDivisor(3, 1);
+	glVertexAttribDivisor(4, 1);
+	glVertexAttribDivisor(5, 1);
+	glVertexAttribDivisor(6, 1);
+
+	glBindVertexArray(0);
+
 	// Globalne dane o wietrze
 	std::cout << "Ladowanie globalnych danych o wietrze" << std::endl;
 	// Test
-	std::string dane = GetWindDataGlobal();
-	
+
+	std::string dane = GetWindDataGlobal(date);
 
 	grid = createGrid(gridTileSize);
-
-	updateWindData(); // Pobieranie danych o wietrze po utworzeniu siatki
 }
 
 ///////// Czyszczenie po zamknięciu /////////
@@ -718,6 +782,7 @@ void shutdown(GLFWwindow* window) {
 	shaderLoader.DeleteProgram(programTex);
 	shaderLoader.DeleteProgram(programAtm);
 	shaderLoader.DeleteProgram(programCloud);
+	shaderLoader.DeleteProgram(programArrowInstanced);
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
@@ -736,7 +801,7 @@ void processInput(GLFWwindow* window)
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
 
-	if  (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
 		cameraAngleX += angleSpeed;
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		cameraAngleX -= angleSpeed;
@@ -790,7 +855,7 @@ void renderLoop(GLFWwindow* window) {
 
 		}
 		*/
-		
+
 
 		ImGui::PopItemWidth();
 
@@ -800,10 +865,10 @@ void renderLoop(GLFWwindow* window) {
 		renderScene(window);
 
 		// Render ImGui
-		ImGui::Render(); 
-		
+		ImGui::Render();
+
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-		
+
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
