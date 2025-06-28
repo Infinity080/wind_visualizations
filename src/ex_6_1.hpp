@@ -36,6 +36,8 @@ namespace texture {
 struct Grid {
 	std::vector<float> latitudes;   // Lista szerokości geograficznych środków kafelków
 	std::vector<float> longitudes;  // Lista długości geograficznych środków kafelków
+	std::vector<float> windAngles; // Lista kierunków wiatru w stopniach
+	std::vector<float> windSpeeds; // Lista prędkości wiatru w m/s
 	size_t numTiles; // Liczba kafelków w siatce
 };
 
@@ -376,12 +378,11 @@ void drawObjectClouds(Core::RenderContext& context, glm::mat4 modelMatrix, GLuin
 // Funkcja do aktualizacji danych o strzałkach wiatru dla renderingu instancyjnego
 void updateWindArrowData() {
 	arrowModelMatrices.clear();
-	if (windData.empty()) {
+	if (grid.numTiles == 0) {
 		return;
 	}
 
 	try {
-		nlohmann::json windJson = nlohmann::json::parse(windData);
 		int timeIndex = 0;
 
 		arrowModelMatrices.reserve(grid.numTiles);
@@ -390,8 +391,8 @@ void updateWindArrowData() {
 			try {
 				float lat = grid.latitudes[i];
 				float lon = grid.longitudes[i];
-				float windDirection = windJson[i]["hourly"]["wind_direction_180m"][timeIndex];
-				float arrowAngle = 270.0f - windDirection;
+				float arrowAngle = grid.windAngles[i];
+				float arrowSpeed = grid.windSpeeds[i];
 
 				glm::vec3 normal = glm::normalize(latLonToXYZ(lat, lon));
 				glm::vec3 point = normal * (modelRadius + 1.0f);
@@ -407,7 +408,7 @@ void updateWindArrowData() {
 				arrowModelMatrices.push_back(modelMatrix);
 			}
 			catch (const std::exception& e) {
-				// Pominięcie punktu w przypadku błędu, można dodać logowanie
+				// Jeśli wystąpi błąd podczas przetwarzania konkretnego punktu, pomijamy go
 			}
 		}
 	}
@@ -422,8 +423,17 @@ void updateWindArrowData() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+double calculateWindAngle(double u, double v) {
+	const double PI = 3.14159265358979323846;
+	double angleRad = atan2(u, v); // Obliczamy kierunek strzałki w radianach
+	double angleDeg = angleRad * 180.0 / PI;
+	if (angleDeg < 0) angleDeg += 360.0;
+	return angleDeg;
+}
+
 // Funkcja do rysowania strzałek wiatru
 void drawWindArrows() {
+
 	if (arrowModelMatrices.empty()) {
 		return;
 	}
@@ -447,35 +457,64 @@ void drawWindArrows() {
 
 ///////// Funkcje do siatki //////////
 // Funkcja do tworzenia siatki składającej się z kafelków
-Grid createGrid(float tileSize) {
+Grid createGrid() {
 	Grid grid;
-	float halfTile = tileSize / 2.0f;
-
-	std::vector<float> latitudes_temp;
-	std::vector<float> longitudes_temp;
-	size_t numTiles = 0;
-
-	// Tworzenie listy szerokości geograficznych
-	for (float lat = -90.0f + halfTile; lat < 90.0f; lat += tileSize) {
-		latitudes_temp.push_back(lat);
+	grid.numTiles = 0;
+	std::cout << "Rozpoczeto tworzenie siatki" << std::endl;
+	if (windDataGlobal.empty()) {
+		std::cerr << "Brak danych o wietrze do utworzenia siatki." << std::endl;
+		return grid;
 	}
 
-	// Tworzenie listy długości geograficznych
-	for (float lon = -180.0f + halfTile; lon < 180.0f; lon += tileSize) {
-		longitudes_temp.push_back(lon);
-	}
+	try {
+		auto jsonData = nlohmann::json::parse(windDataGlobal);
+		std::set<std::pair<float, float>> uniqueCoords;
 
-	for (size_t i = 0; i < latitudes_temp.size(); ++i) {
-		for (size_t j = 0; j < longitudes_temp.size(); ++j) {
-			grid.latitudes.push_back(latitudes_temp[i]);
-			grid.longitudes.push_back(longitudes_temp[j]);
-			numTiles++;
+		// Tymczasowe mapowanie współrzędnych na U, V, GUST
+		std::map<std::pair<float, float>, float> uMap;
+		std::map<std::pair<float, float>, float> vMap;
+		std::map<std::pair<float, float>, float> gustMap;
+
+		// Parsowanie pliku JSON z danymi o wietrze
+		for (const auto& item : jsonData) {
+			if (item.contains("latitude") && item.contains("longitude") && item.contains("parameter") && item.contains("value")) {
+				float lat = item["latitude"].get<float>();
+				float lon = item["longitude"].get<float>();
+				std::string param = item["parameter"];
+				float value = item["value"].get<float>();
+
+				// Zapisywanie odczytanych współrzędnych
+				uniqueCoords.insert({ lat, lon });
+
+				// Zapisywanie odczytanych parametrów do tymczasowych zmiennych
+				if (param == "UGRD") uMap[{lat, lon}] = value;
+				else if (param == "VGRD") vMap[{lat, lon}] = value;
+				else if (param == "GUST") gustMap[{lat, lon}] = value;
+			}
 		}
-	}
 
-	grid.numTiles = numTiles;
-	latitudes_temp = {};
-	longitudes_temp = {};
+		// Zapisywanie danych o wietrze do struktury grid
+		for (const auto& coord : uniqueCoords) {
+			float lat = coord.first;
+			float lon = coord.second;
+			grid.latitudes.push_back(lat);
+			grid.longitudes.push_back(lon);
+
+			float u = uMap.count(coord) ? uMap[coord] : 0.0f;
+			float v = vMap.count(coord) ? vMap[coord] : 0.0f;
+			float gust = gustMap.count(coord) ? gustMap[coord] : 0.0f;
+
+			float angle = static_cast<float>(calculateWindAngle(u, v));
+			grid.windAngles.push_back(angle);
+			grid.windSpeeds.push_back(gust);
+		}
+
+		grid.numTiles = uniqueCoords.size();
+	}
+	catch (const nlohmann::json::parse_error& e) {
+		std::cerr << "Blad parsowania JSON w createGrid: " << e.what() << std::endl;
+	}
+	std::cout << "Zakonczono tworzenie siatki" << std::endl;
 
 	return grid;
 }
@@ -494,49 +533,12 @@ void drawGridDots() {
 }
 ////////////////////////////////////////////////////
 
-// Funkcja do pobierania danych o wietrze
-void updateWindData() {
-	std::vector<std::string> latitudes;
-	std::vector<std::string> longitudes;
-
-	// Wyznaczenie wszystkich szerokości i długości geograficznych z siatki
-	// Konwersja szerokości geograficznych
-	for (const float& lat : grid.latitudes) {
-		latitudes.push_back(std::to_string(lat));
-	}
-
-	// Konwersja długości geograficznych
-	for (const float& lon : grid.longitudes) {
-		longitudes.push_back(std::to_string(lon));
-	}
-
-	// Aktualizacja globalnej zmiennej windData
-	//std::cout << "Wysylanie danych do API: " << latitudes[0] << "; " << longitudes[0] << std::endl;
-	windData = ""; // GetWindData(latitudes, longitudes);
-	updateWindArrowData();
-
-	// Debug info
-	//std::cout << "Pobrano dane z API (" << windData.length() << ")" << std::endl;
-}
-
 void updateWindDataGlobal() {
-	global_latitudes.clear();
-	global_longitudes.clear();
-	// Konwersja szerokości geograficznych
-	for (const float& lat : grid.latitudes) {
-		global_latitudes.push_back(std::to_string(lat));
-	}
-
-	// Konwersja długości geograficznych
-	for (const float& lon : grid.longitudes) {
-		global_longitudes.push_back(std::to_string(lon));
-	}
-
 	// Aktualizacja globalnej zmiennej windData
 	windDataGlobal = GetWindDataGlobal(date);
 
-	// Debug info
-	// std::cout << "Pobrano dane z API (" << windDataGlobal.length() << ")" << std::endl;
+	// Tworzenie siatki na podstawie danych o wietrze
+	grid = createGrid(); 
 }
 
 
@@ -554,8 +556,8 @@ void renderScene(GLFWwindow* window)
 	glm::mat4 PerspectivexCamera = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f));//reverse the earth scaling
 
-	drawPoint(52.41f, 16.93f, glm::vec3(1.0f, 0.0f, 0.0f)); // Poznań
-	drawArrow(52.41f, 16.93f, 45.0f, glm::vec3(0.0f, 1.0f, 0)); // Poznań, rotated 45 degrees 
+	// drawPoint(52.41f, 16.93f, glm::vec3(1.0f, 0.0f, 0.0f)); // Poznań
+	// drawArrow(52.41f, 16.93f, 45.0f, glm::vec3(0.0f, 1.0f, 0)); // Poznań, rotated 45 degrees 
 
 	glUseProgram(program);
 	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, &bordersTransform[0][0]); // set shaders
@@ -574,7 +576,7 @@ void renderScene(GLFWwindow* window)
 	glBindVertexArray(0);
 	glUseProgram(0);
 
-	drawGridDots();
+	// drawGridDots();
 	drawWindArrows();
 }
 ////////////////////////////////////////////////////
@@ -750,7 +752,7 @@ void init(GLFWwindow* window)
 	glBindVertexArray(arrowContext.vertexArray);
 	glBindBuffer(GL_ARRAY_BUFFER, arrowInstanceVBO);
 
-	// Ustawienie wskaźników atrybutów dla macierzy modelu (mat4)
+	// Ustawienie wskaźników atrybutów dla macierzy modelu
 	glEnableVertexAttribArray(3);
 	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
 	glEnableVertexAttribArray(4);
@@ -769,11 +771,9 @@ void init(GLFWwindow* window)
 
 	// Globalne dane o wietrze
 	std::cout << "Ladowanie globalnych danych o wietrze" << std::endl;
-	// Test
 
-	std::string dane = GetWindDataGlobal(date);
-
-	grid = createGrid(gridTileSize);
+	updateWindDataGlobal();
+	updateWindArrowData();
 }
 
 ///////// Czyszczenie po zamknięciu /////////

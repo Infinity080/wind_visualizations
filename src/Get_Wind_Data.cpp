@@ -13,7 +13,6 @@ std::vector<std::string> global_latitudes;
 std::vector<std::string> global_longitudes;
 
 int days_before = 2; // Maks. 7 dni (zalecane)
-//int days_after = 1; // Maks 90 dni
 
 // Funkcja do formatowania daty pocz¹tkowej i koñcowej do requesta
 std::string GetFormattedDate(int offset_days) {
@@ -181,6 +180,10 @@ int FetchWindDataGlobal() {
     // Tworzymy requesty do API dla ka¿dego dnia
     for (int day = 0; day <= days_before; ++day) {
         std::string date = GetFormattedDate(-day);
+
+        if (fs::exists(date + "_wind_data.json")) {
+            continue;
+        }
 
         const std::string dir = "%2Fgfs." + date + "%2F" + cycle + "%2Fatmos";
         const std::string data_url = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?"
