@@ -25,6 +25,7 @@
     <ClCompile Include="src\Camera.cpp" />
     <ClCompile Include="src\Get_Wind_Data.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\Quick_Menu.cpp" />
     <ClCompile Include="src\Render_Utils.cpp" />
     <ClCompile Include="src\Shader_Loader.cpp" />
     <ClCompile Include="src\SOIL\image_DXT.c" />
@@ -47,9 +48,10 @@
     <ClInclude Include="imgui\imstb_textedit.h" />
     <ClInclude Include="imgui\imstb_truetype.h" />
     <ClInclude Include="src\Camera.h" />
-    <ClInclude Include="src\ex_6_1.hpp" />
+    <ClInclude Include="src\Wind_App.hpp" />
     <ClInclude Include="src\Get_Wind_Data.h" />
     <ClInclude Include="src\objload.h" />
+    <ClInclude Include="src\Quick_Menu.h" />
     <ClInclude Include="src\Render_Utils.h" />
     <ClInclude Include="src\Shader_Loader.h" />
     <ClInclude Include="src\SOIL\image_DXT.h" />
@@ -125,7 +127,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>imgui;dependencies/shapefil;dependencies/nlohmann/;dependencies/;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>imgui;dependencies/shapefil;dependencies/nlohmann/;dependencies/imrad/;$(SolutionDir)include;dependencies/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>

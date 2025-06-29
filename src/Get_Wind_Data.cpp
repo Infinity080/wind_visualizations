@@ -25,6 +25,7 @@ std::string GetFormattedDate(int offset_days) {
     return oss.str();
 }
 
+
 // Funkcja pomocnicza (Dzieli liniê wed³ug delimitera)
 static std::vector<std::string> split(const std::string& s, char delimiter) {
     std::vector<std::string> tokens;
@@ -145,9 +146,8 @@ std::string GetBackupData() {
 std::string GetWindDataGlobal(std::string date) {
     std::string cacheFile = date + "_wind_data.json";
 
-    // Jeœli plik cache nie istnieje lub jest starszy ni¿ 3 godziny, pobierz dane z API
-    if (!fs::exists(cacheFile) ||
-        (fs::file_time_type::clock::now() - fs::last_write_time(cacheFile)) > std::chrono::hours(3)) {
+    // Jeœli plik cache nie istnieje, pobierz dane z API
+    if (!fs::exists(cacheFile)) {
         if (FetchWindDataGlobal() != 0) {
             return GetBackupData();
 		}

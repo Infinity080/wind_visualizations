@@ -8,11 +8,12 @@
 #include "ext.hpp"
 #include <iostream>
 #include <cmath>
-#include "ex_6_1.hpp"
+#include "Wind_App.hpp"
 
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
+
 
 
 int main(int argc, char** argv)
@@ -28,7 +29,7 @@ int main(int argc, char** argv)
 #endif
 
 	// Tworzenie okna za pomoc¹ glfw
-	GLFWwindow* window = glfwCreateWindow(1000, 1000, "FirstWindow", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(1000, 1000, "Wind App", NULL, NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -44,9 +45,55 @@ int main(int argc, char** argv)
 	// £adowanie ImGui
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	
 
 	ImGui::StyleColorsDark();
+
+	ImVec4* colors = ImGui::GetStyle().Colors;
+	colors[ImGuiCol_Text] = ImVec4(0.90f, 0.90f, 0.90f, 1.00f);
+	colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+
+	colors[ImGuiCol_WindowBg] = ImVec4(0.078f, 0.129f, 0.239f, 1.00f);           
+
+	colors[ImGuiCol_ChildBg] = ImVec4(0.078f, 0.129f, 0.239f, 0.00f);
+	colors[ImGuiCol_PopupBg] = ImVec4(0.078f, 0.129f, 0.239f, 1.00f);
+
+	colors[ImGuiCol_Border] = ImVec4(0.0f, 0.71f, 0.847f, 0.50f);                   
+
+	colors[ImGuiCol_FrameBg] = ImVec4(0.178f, 0.229f, 0.339f, 0.54f);
+	colors[ImGuiCol_FrameBgHovered] = ImVec4(0.0f, 0.71f, 0.847f, 0.40f);
+	colors[ImGuiCol_FrameBgActive] = ImVec4(0.0f, 0.71f, 0.847f, 1.00f);
+
+	colors[ImGuiCol_TitleBg] = ImVec4(0.078f, 0.129f, 0.239f, 1.00f);
+	colors[ImGuiCol_TitleBgActive] = ImVec4(0.0f, 0.71f, 0.847f, 1.00f);
+	colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.078f, 0.129f, 0.239f, 0.75f);
+
+	colors[ImGuiCol_Button] = ImVec4(0.0f, 0.71f, 0.847f, 0.40f);
+	colors[ImGuiCol_ButtonHovered] = ImVec4(0.282f, 0.792f, 0.894f, 0.80f);     
+	colors[ImGuiCol_ButtonActive] = ImVec4(0.0f, 0.71f, 0.847f, 1.00f);
+
+	colors[ImGuiCol_Header] = ImVec4(0.0f, 0.71f, 0.847f, 0.40f);
+	colors[ImGuiCol_HeaderHovered] = ImVec4(0.282f, 0.792f, 0.894f, 0.80f);        
+	colors[ImGuiCol_HeaderActive] = ImVec4(0.0f, 0.71f, 0.847f, 1.00f);
+
+	colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 0.71f, 0.847f, 1.00f);
+	colors[ImGuiCol_SliderGrab] = ImVec4(0.282f, 0.792f, 0.894f, 1.00f);       
+	colors[ImGuiCol_SliderGrabActive] = ImVec4(0.0f, 0.71f, 0.847f, 1.00f);
+	colors[ImGuiCol_Border] = ImVec4(0.0f, 0.0f, 0.0f, 1.00f);
+
+	colors[ImGuiCol_Separator] = ImVec4(0.0f, 0.71f, 0.847f, 0.50f);
+	colors[ImGuiCol_SeparatorHovered] = ImVec4(0.282f, 0.792f, 0.894f, 0.78f);     
+	colors[ImGuiCol_SeparatorActive] = ImVec4(0.0f, 0.71f, 0.847f, 1.00f);
+
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.WindowRounding = 12.0f;
+	style.ChildRounding = 12.0f;
+	style.GrabRounding = 12.0f;
+	style.FrameRounding = 12.0f;
+
+	ImGuiIO& io = ImGui::GetIO();
+	ImFont* segoeFont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeuib.ttf", 24.0f);
+	if (segoeFont) io.FontDefault = segoeFont;
 
 	// Setup Platform/Renderer bindings
 	ImGui_ImplGlfw_InitForOpenGL(window, false);

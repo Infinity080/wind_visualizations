@@ -90,6 +90,9 @@
     <ClCompile Include="src\Get_Wind_Data.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Quick_Menu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\objload.h">
@@ -125,7 +128,7 @@
     <ClInclude Include="src\SOIL\image_DXT.h">
       <Filter>Source Files\SOIL</Filter>
     </ClInclude>
-    <ClInclude Include="src\ex_6_1.hpp">
+    <ClInclude Include="src\Wind_App.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="imgui\imgui_impl_opengl3_loader.h">
@@ -166,6 +169,9 @@
     </ClInclude>
     <ClInclude Include="cpp\src\ex_6_1.hpp">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Quick_Menu.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
