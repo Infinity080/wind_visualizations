@@ -43,6 +43,13 @@ struct Grid {
 	size_t numTiles; // Liczba kafelków w siatce
 };
 
+struct CountryWindInfo {
+	float avgLat = 0.0f;
+	float avgLon = 0.0f;
+	float avgAngle = 0.0f;
+	float avgSpeed = 0.0f;
+};
+
 struct Country {
 	int id;
 	std::string name;
@@ -754,6 +761,52 @@ bool pointInCountry(float testLat, float testLon, const std::vector<glm::vec3>& 
 
 	return (intersections % 2) == 1;
 }
+CountryWindInfo calculateCountryWindInfo(int countryId) {
+	CountryWindInfo info;
+
+	Country& country = countries[countryId];
+
+	double sumLat = 0.0, sumLon = 0.0;
+	int totalPoints = 0;
+
+	for (const auto& boundary : country.boundaries) {
+		for (const auto& vertex : boundary) {
+			sumLat += glm::degrees(asin(vertex.y));
+			sumLon += glm::degrees(atan2(-vertex.z, vertex.x));
+			totalPoints++;
+		}
+	}
+
+	info.avgLat = sumLat / totalPoints;
+	info.avgLon = sumLon / totalPoints;
+
+	float maxDistance = gridTileSize * 0.75f;
+	double sumSpeed = 0.0, sumX = 0.0, sumY = 0.0;
+	int count = 0;
+
+	for (size_t i = 0; i < grid.numTiles; i++) {
+		float dLat = grid.latitudes[i] - info.avgLat;
+		float dLon = grid.longitudes[i] - info.avgLon;
+
+		if (fabs(dLat) > maxDistance || fabs(dLon) > maxDistance) {
+			continue;
+		}
+
+		sumSpeed += grid.windSpeeds[i];
+		float angleRad = glm::radians(grid.windAngles[i]);
+		sumX += cos(angleRad);
+		sumY += sin(angleRad);
+		count++;
+	}
+
+	info.avgSpeed = sumSpeed / count;
+	info.avgAngle = glm::degrees(atan2(sumY, sumX));
+
+	if (info.avgAngle < 0.0f) {
+		info.avgAngle += 360.0f;
+	}
+	return info;
+}
 
 ///////// Funkcja inicjalizująca /////////
 void init(GLFWwindow* window)
@@ -813,6 +866,11 @@ void init(GLFWwindow* window)
 					for (const auto& b : c.boundaries) {
 						if (pointInCountry(lat, lon, b)) {
 							selectedCountryId = c.id;
+							CountryWindInfo info = calculateCountryWindInfo(selectedCountryId);
+							std::cout << "lat: " << info.avgLat << "\n";
+							std::cout << "lon: " << info.avgLon << "\n";
+							std::cout << "angle: " << info.avgAngle << "\n";
+							std::cout << "speed: " << info.avgSpeed << "\n";
 							break;
 						}
 					}
