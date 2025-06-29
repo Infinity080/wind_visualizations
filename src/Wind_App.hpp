@@ -42,6 +42,16 @@ struct Grid {
 	size_t numTiles; // Liczba kafelków w siatce
 };
 
+struct Country {
+	int id;
+	std::string name;
+	std::vector<std::vector<glm::vec3>> boundaries;
+};
+
+std::vector<Country> countries;
+
+int selectedCountryId = -1;
+
 Grid grid;
 
 float gridTileSize = 11.0f; // Rozmiar pojedynczego kafelka siatki - docelowo 1.0 lub 0.5f
@@ -79,8 +89,6 @@ float mouseSensitivity = 0.005f;
 
 GLuint bordersVAO = 0, bordersVBO = 0;
 std::vector<GLuint> countryFirstVert, countryVertCount;
-
-std::vector<std::vector<glm::vec3>> countryBoundaries;
 
 float planetRadius = 3.0f;
 float modelRadius = 110.0f;
@@ -137,49 +145,63 @@ glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 		* padfX,padfY - actual coordinates (arrays)
 	*/
 void loadCountryBoundaries(const std::string& filePath) {
-	SHPHandle handler = SHPOpen(filePath.c_str(), "rb"); // read shapefile as binary
+	SHPHandle handler = SHPOpen(filePath.c_str(), "rb");
 
-	int n;
-	int Type; // polygon, line, point
-	double temp1[4], temp2[4];
-	SHPGetInfo(handler, &n, &Type, temp1, temp2);
+	DBFHandle dbfHandler = DBFOpen(filePath.c_str(), "rb");
 
-	for (int i = 0; i < n; i++) // loop over countries
-	{
-		SHPObject* country = SHPReadObject(handler, i);
+	int nameFieldIndex = DBFGetFieldIndex(dbfHandler, "NAME");
 
-		// we need to loop over each part if it has more than 1
-		int parts = country->nParts;
-		for (int j = 0; j < parts; j++)
-		{
-			int start = country->panPartStart[j];
-			int end;
-			if (j + 1 < parts)
-			{
-				end = country->panPartStart[j + 1];
-			}
-			else {
-				end = country->nVertices;
-			}
+	int nEntities;
+	int shapeType;
+	double bounds1[4], bounds2[4];
+	SHPGetInfo(handler, &nEntities, &shapeType, bounds1, bounds2);
+	std::cout << "Typ geometrii w pliku SHP: " << shapeType << std::endl;
 
-			std::vector<glm::vec3> shape;
+	countries.clear(); 
 
-			for (int j = start; j < end; j++) {
-				double lon = country->padfX[j];
-				double lat = country->padfY[j];
-				glm::vec3 coords = latLonToXYZ(lat, lon);
-				float x = coords[0];
-				float y = coords[1];
-				float z = coords[2];
+	std::map<std::string, int> countryNameToIndex;
 
-				shape.emplace_back(x, y, z);
-			}
+	for (int i = 0; i < nEntities; ++i) {
+		SHPObject* shpObj = SHPReadObject(handler, i);
+		if (!shpObj) continue;
 
-			if (shape.size() > 1)
-				countryBoundaries.push_back(std::move(shape));
+		const char* name = DBFReadStringAttribute(dbfHandler, i, nameFieldIndex);
+		std::string countryName = name ? name : "Unknown";
+
+		int countryIndex;
+		if (countryNameToIndex.count(countryName)) {
+			countryIndex = countryNameToIndex[countryName];
+		}
+		else {
+			Country newCountry;
+			newCountry.id = static_cast<int>(countries.size());
+			newCountry.name = countryName;
+			countries.push_back(newCountry);
+			countryIndex = newCountry.id;
+			countryNameToIndex[countryName] = countryIndex;
 		}
 
+		for (int part = 0; part < shpObj->nParts; ++part) {
+			int start = shpObj->panPartStart[part];
+			int end = (part + 1 < shpObj->nParts) ? shpObj->panPartStart[part + 1] : shpObj->nVertices;
+
+			std::vector<glm::vec3> boundary;
+			for (int j = start; j < end; ++j) {
+				double lon = shpObj->padfX[j];
+				double lat = shpObj->padfY[j];
+				glm::vec3 coords = latLonToXYZ(lat, lon);
+				boundary.emplace_back(coords);
+			}
+
+			if (boundary.size() > 1) {
+				countries[countryIndex].boundaries.push_back(std::move(boundary));
+			}
+		}
+
+		SHPDestroyObject(shpObj);
 	}
+
+	DBFClose(dbfHandler);
 	SHPClose(handler);
 }
 
@@ -212,6 +234,26 @@ glm::mat4 createPerspectiveMatrix()
 		});
 	perspectiveMatrix = glm::transpose(perspectiveMatrix);
 	return perspectiveMatrix;
+}
+
+glm::vec3 getRayFromMouse(double mouseX, double mouseY, int screenWidth, int screenHeight) {
+	float x = (2.0f * static_cast<float>(mouseX)) / screenWidth - 1.0f;
+	float y = 1.0f - (2.0f * static_cast<float>(mouseY)) / screenHeight;
+	float z = 1.0f;
+
+	glm::vec3 rayNDC(x, y, z);
+
+	glm::vec4 rayClip(rayNDC.x, rayNDC.y, -1.0f, 1.0f);
+
+	glm::mat4 projection = createPerspectiveMatrix();
+	glm::vec4 rayEye = glm::inverse(projection) * rayClip;
+	rayEye = glm::vec4(rayEye.x, rayEye.y, -1.0f, 0.0f);
+
+	glm::mat4 view = createCameraMatrix();
+	glm::vec3 rayWorld = glm::vec3(glm::inverse(view) * rayEye);
+	rayWorld = glm::normalize(rayWorld);
+
+	return rayWorld;
 }
 
 // Funkcja do kontroli scrolla
@@ -554,7 +596,7 @@ void updateWindDataGlobal() {
 	windDataGlobal = GetWindDataGlobal(date);
 
 	// Tworzenie siatki na podstawie danych o wietrze
-	grid = createGrid(); 
+	grid = createGrid();
 }
 
 
@@ -572,9 +614,6 @@ void renderScene(GLFWwindow* window)
 	glm::mat4 PerspectivexCamera = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f));//reverse the earth scaling
 
-	// drawPoint(52.41f, 16.93f, glm::vec3(1.0f, 0.0f, 0.0f)); // Poznań
-	// drawArrow(52.41f, 16.93f, 45.0f, glm::vec3(0.0f, 1.0f, 0)); // Poznań, rotated 45 degrees 
-
 	glUseProgram(program);
 	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, &bordersTransform[0][0]); // set shaders
 	glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_FALSE, &planetModelMatrix[0][0]);
@@ -585,14 +624,33 @@ void renderScene(GLFWwindow* window)
 	// draw the actual lines
 	glLineWidth(2.0f);
 	glBindVertexArray(bordersVAO);
-	for (int i = 0; i < countryFirstVert.size(); i++) {
-		glDrawArrays(GL_LINE_LOOP, countryFirstVert[i], countryVertCount[i]);
-	}
+	int counter = 0;
+	for (const auto& country : countries) {
+		for (size_t i = 0; i < country.boundaries.size(); ++i) {
+			glm::vec3 color = (country.id == selectedCountryId)
+				? glm::vec3(1.0f, 0.2f, 0.2f)
+				: glm::vec3(0.0f, 0.0f, 2.55f);
 
+			glUniform3f(glGetUniformLocation(program, "color"), color.r, color.g, color.b);
+			glDrawArrays(GL_LINE_LOOP, countryFirstVert[counter], countryVertCount[counter]);
+			counter++;
+		}
+	}
 	glBindVertexArray(0);
 	glUseProgram(0);
 
-	// drawGridDots();
+	// granice zaznaczonego kraju
+	if (selectedCountryId >= 0) {
+		const Country& selected = countries[selectedCountryId];
+		for (const auto& boundary : selected.boundaries) {
+			for (const auto& v : boundary) {
+				float lat = glm::degrees(asin(v.y));
+				float lon = glm::degrees(atan2(-v.z, v.x));
+				drawPoint2D(lat, lon, glm::vec3(1.0f, 0.0f, 0.0f)); 
+			}
+		}
+	}
+
 	drawWindArrows();
 }
 ////////////////////////////////////////////////////
@@ -623,19 +681,40 @@ void loadModelToContext(std::string path, Core::RenderContext& context)
 }
 ////////////////////////////////////////////////////
 
+bool pointInCountry(float testLat, float testLon, const std::vector<glm::vec3>& boundary) {
+	if (boundary.size() < 3) return false;
+
+	int intersections = 0;
+	for (size_t i = 0, j = boundary.size() - 1; i < boundary.size(); j = i++) {
+		float lat1 = glm::degrees(asin(boundary[i].y));
+		float lon1 = glm::degrees(atan2(-boundary[i].z, boundary[i].x));
+		float lat2 = glm::degrees(asin(boundary[j].y));
+		float lon2 = glm::degrees(atan2(-boundary[j].z, boundary[j].x));
+
+		if (((lat1 > testLat) != (lat2 > testLat)) &&
+			(testLon < (lon2 - lon1) * (testLat - lat1) / (lat2 - lat1 + 1e-6f) + lon1))
+			intersections++;
+	}
+
+	return (intersections % 2) == 1;
+}
+
 ///////// Funkcja inicjalizująca /////////
 void init(GLFWwindow* window)
 {
 	// loading borders
 	loadCountryBoundaries("data/ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp");
-	std::cout << "Loaded " << countryBoundaries.size() << " country boundaries.\n";
 
-	std::vector<glm::vec3> vertices; // flattened array of vertifces
-	for (int i = 0; i < countryBoundaries.size(); i++) {
-		std::vector<glm::vec3>& country = countryBoundaries[i];
-		countryFirstVert.push_back((GLsizei)vertices.size()); // record first index of a country
-		countryVertCount.push_back((GLsizei)country.size()); // record size of a country (number of vertices)
-		vertices.insert(vertices.end(), country.begin(), country.end()); // insert into vertices the whole country
+	std::vector<glm::vec3> vertices; 
+	countryFirstVert.clear();
+	countryVertCount.clear();
+
+	for (const auto& country : countries) {
+		for (const auto& boundary : country.boundaries) {
+			countryFirstVert.push_back(static_cast<GLsizei>(vertices.size()));
+			countryVertCount.push_back(static_cast<GLsizei>(boundary.size()));
+			vertices.insert(vertices.end(), boundary.begin(), boundary.end());
+		}
 	}
 
 	glGenVertexArrays(1, &bordersVAO);
@@ -651,18 +730,47 @@ void init(GLFWwindow* window)
 
 	glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
 		ImGuiIO& io = ImGui::GetIO();
-		ImGui_ImplGlfw_MouseButtonCallback(w, button, action, mods); // Forward to ImGui
+		ImGui_ImplGlfw_MouseButtonCallback(w, button, action, mods);
 
-		if (button == GLFW_MOUSE_BUTTON_LEFT) {
-			if (action == GLFW_PRESS && !io.WantCaptureMouse) {
-				dragging = true;
-				glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-				glfwGetCursorPos(w, &lastX, &lastY);
+		if (button != GLFW_MOUSE_BUTTON_LEFT) {
+			return;
+		}
+
+		if (action == GLFW_PRESS && !io.WantCaptureMouse) {
+			int wWidth, wHeight;
+			glfwGetFramebufferSize(w, &wWidth, &wHeight);
+
+			double x, y;
+			glfwGetCursorPos(w, &x, &y);
+
+			glm::vec3 dir = getRayFromMouse(x, y, wWidth, wHeight);
+			glm::vec3 L = -cameraPos;
+			float tca = glm::dot(L, dir);
+			float d2 = glm::dot(L, L) - tca * tca;
+			if (d2 <= planetRadius * planetRadius) {
+				glm::vec3 hit = cameraPos + (tca - sqrt(planetRadius * planetRadius - d2)) * dir;
+				float lat = glm::degrees(asin(hit.y / planetRadius));
+				float lon = glm::degrees(atan2(-hit.z, hit.x));
+
+				selectedCountryId = -1;
+				for (const auto& c : countries) {
+					for (const auto& b : c.boundaries) {
+						if (pointInCountry(lat, lon, b)) {
+							selectedCountryId = c.id;
+							break;
+						}
+					}
+					if (selectedCountryId >= 0) break;
+				}
 			}
-			else if (action == GLFW_RELEASE) {
-				dragging = false;
-				glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-			}
+
+			dragging = true;
+			glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			glfwGetCursorPos(w, &lastX, &lastY);
+		}
+		else if (action == GLFW_RELEASE) {
+			dragging = false;
+			glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		}
 		});
 
