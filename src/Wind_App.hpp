@@ -4,7 +4,8 @@
 #include "ext.hpp"
 #include <iostream>
 #include <cmath>
-
+#include <fstream>
+#include <filesystem>
 
 #include "Shader_Loader.h"
 #include "Render_Utils.h"
@@ -123,6 +124,8 @@ float ImGuiWidth = 460.0f;
 float ImGuiHeight = 280.0f;
 
 std::string date = GetFormattedDate(-daysBefore); // Dzisiejsza data
+
+bool isUpdating = false;
 
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
@@ -516,6 +519,36 @@ void drawWindArrows() {
 ///////// Funkcje do siatki //////////
 // Funkcja do tworzenia siatki składającej się z kafelków
 Grid createGrid() {
+	std::string cacheFileName = date + "_grid.dat";
+
+	if (std::filesystem::exists(cacheFileName)) {
+		std::cout << "Ladowanie siatki z pliku: " << cacheFileName << std::endl;
+		Grid grid;
+		std::ifstream inFile(cacheFileName, std::ios::binary);
+		if (inFile.is_open()) {
+			inFile.read(reinterpret_cast<char*>(&grid.numTiles), sizeof(grid.numTiles));
+
+			auto read_vector = [&](std::vector<float>& vec) {
+				size_t size;
+				inFile.read(reinterpret_cast<char*>(&size), sizeof(size));
+				vec.resize(size);
+				inFile.read(reinterpret_cast<char*>(vec.data()), size * sizeof(float));
+				};
+
+			read_vector(grid.latitudes);
+			read_vector(grid.longitudes);
+			read_vector(grid.windAngles);
+			read_vector(grid.windSpeeds);
+
+			inFile.close();
+			std::cout << "Zakonczono ladowanie siatki z pliku." << std::endl;
+			return grid;
+		}
+		else {
+			std::cerr << "Nie mozna otworzyc pliku do odczytu: " << cacheFileName << std::endl;
+		}
+	}
+
 	Grid grid;
 	grid.numTiles = 0;
 	std::cout << "Rozpoczeto tworzenie siatki" << std::endl;
@@ -568,6 +601,29 @@ Grid createGrid() {
 		}
 
 		grid.numTiles = uniqueCoords.size();
+
+		std::cout << "Zapisywanie siatki do pliku: " << cacheFileName << std::endl;
+		std::ofstream outFile(cacheFileName, std::ios::binary);
+		if (outFile.is_open()) {
+			outFile.write(reinterpret_cast<const char*>(&grid.numTiles), sizeof(grid.numTiles));
+
+			auto write_vector = [&](const std::vector<float>& vec) {
+				size_t size = vec.size();
+				outFile.write(reinterpret_cast<const char*>(&size), sizeof(size));
+				outFile.write(reinterpret_cast<const char*>(vec.data()), size * sizeof(float));
+				};
+
+			write_vector(grid.latitudes);
+			write_vector(grid.longitudes);
+			write_vector(grid.windAngles);
+			write_vector(grid.windSpeeds);
+
+			outFile.close();
+			std::cout << "Zakonczono zapisywanie siatki do pliku." << std::endl;
+		}
+		else {
+			std::cerr << "Nie mozna otworzyc pliku do zapisu: " << cacheFileName << std::endl;
+		}
 	}
 	catch (const nlohmann::json::parse_error& e) {
 		std::cerr << "Blad parsowania JSON w createGrid: " << e.what() << std::endl;
@@ -1136,10 +1192,11 @@ void renderLoop(GLFWwindow* window) {
 			/// @end Button
 
 			/// @begin Button
-			if (ImGui::Button("Zmien date", ImVec2(320, 0)))
+			if (ImGui::Button("Zmien date", ImVec2(320, 0)) && !isUpdating)
 			{
 				updateWindDataGlobal();
 				updateWindArrowData();
+				isUpdating = false;
 			}
 			/// @end Button
 

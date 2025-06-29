@@ -14,6 +14,8 @@ std::vector<std::string> global_longitudes;
 
 int days_before = 2; // Maks. 7 dni (zalecane)
 
+bool OFFLINE_MODE = false;
+
 // Funkcja do formatowania daty pocz¹tkowej i koñcowej do requesta
 std::string GetFormattedDate(int offset_days) {
     auto now = std::chrono::system_clock::now();
@@ -144,6 +146,10 @@ std::string GetBackupData() {
 
 // Funkcja do ³adowania danych o wietrze z cache lub API dla globalnych wspó³rzêdnych
 std::string GetWindDataGlobal(std::string date) {
+    if (OFFLINE_MODE) {
+        std::cout << "Tryb offline - korzystanie z pliku backupowego" << std::endl;
+        return GetBackupData();
+	}
     std::string cacheFile = date + "_wind_data.json";
 
     // Jeœli plik cache nie istnieje, pobierz dane z API
