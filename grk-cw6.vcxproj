@@ -72,6 +72,8 @@
     <None Include="shaders\shader_5_1_tex.frag" />
     <None Include="shaders\shader_5_1_tex.vert" />
     <None Include="shader_arrow_instanced.vert" />
+    <None Include="shader_overlay.frag" />
+    <None Include="shader_overlay.vert" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3952C396-B1C6-44CD-96DD-C1AC15D32978}</ProjectGuid>

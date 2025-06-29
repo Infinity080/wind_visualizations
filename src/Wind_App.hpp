@@ -6,6 +6,7 @@
 #include <cmath>
 #include <fstream>
 #include <filesystem>
+#include <algorithm>
 
 #include "Shader_Loader.h"
 #include "Render_Utils.h"
@@ -71,6 +72,7 @@ GLuint programTex; // Program do rysowania z teksturą
 GLuint programAtm; // Program do rysowania atmosfery
 GLuint programCloud; // Program do rysowania chmur
 GLuint programArrowInstanced; // Program do rysowania strzałek za pomocą instancingu
+GLuint programOverlay; // Program do rysowania nakładki prędkości wiatru
 
 Core::Shader_Loader shaderLoader;
 
@@ -134,6 +136,11 @@ std::string date = GetFormattedDate(-daysBefore); // Dzisiejsza data
 
 bool isUpdating = false;
 
+// Zmienne dla nakładki
+GLuint overlayVAO, overlayVBO, overlayEBO;
+std::vector<unsigned int> overlayIndices;
+float maxWindSpeed = 32.6f; // Maksymalna prędkość wiatru do normalizacji kolorów
+
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
 	float lon = glm::radians(lonInput);
@@ -167,7 +174,7 @@ void loadCountryBoundaries(const std::string& filePath) {
 	SHPGetInfo(handler, &nEntities, &shapeType, bounds1, bounds2);
 	std::cout << "Typ geometrii w pliku SHP: " << shapeType << std::endl;
 
-	countries.clear(); 
+	countries.clear();
 
 	std::map<std::string, int> countryNameToIndex;
 
@@ -521,6 +528,32 @@ void drawWindArrows() {
 
 	glUseProgram(0);
 }
+
+void drawWindOverlay() {
+	if (overlayIndices.empty()) {
+		return;
+	}
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDepthMask(GL_FALSE);
+
+	GLuint prog = programOverlay;
+	glUseProgram(prog);
+
+	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
+	glm::mat4 transformation = viewProjectionMatrix * planetModelMatrix * glm::scale(glm::vec3(1.001f)); // Lekkie skalowanie, aby uniknąć z-fightingu
+	glUniformMatrix4fv(glGetUniformLocation(prog, "transformation"), 1, GL_FALSE, (float*)&transformation);
+	glUniform1f(glGetUniformLocation(prog, "maxWindSpeed"), maxWindSpeed);
+
+	glBindVertexArray(overlayVAO);
+	glDrawElements(GL_TRIANGLES, overlayIndices.size(), GL_UNSIGNED_INT, 0);
+	glBindVertexArray(0);
+
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+	glUseProgram(0);
+}
 ////////////////////////////////////////////////////
 
 ///////// Funkcje do siatki //////////
@@ -652,6 +685,127 @@ void drawGridDots() {
 	}
 
 }
+
+void updateOverlayMesh() {
+	if (grid.numTiles == 0) return;
+
+	struct Vertex {
+		glm::vec3 pos;
+		float windSpeed;
+	};
+
+	int lonSegments = 360;
+	int latSegments = 180;
+	std::vector<Vertex> vertices((lonSegments + 1) * (latSegments + 1));
+
+	// Inicjalizacja siatki wierzchołków
+	for (int j = 0; j <= latSegments; ++j) {
+		for (int i = 0; i <= lonSegments; ++i) {
+			float lat = -90.0f + (float)j * (180.0f / latSegments);
+			float lon = -180.0f + (float)i * (360.0f / lonSegments);
+			int index = j * (lonSegments + 1) + i;
+			vertices[index].pos = latLonToXYZ(lat, lon) * modelRadius;
+			vertices[index].windSpeed = -1.0f; // Wartość oznaczająca brak danych
+		}
+	}
+
+	// Wypełnienie siatki danymi z grida
+	for (size_t i = 0; i < grid.numTiles; ++i) {
+		int lon_idx = static_cast<int>(round(grid.longitudes[i] + 180.0f));
+		int lat_idx = static_cast<int>(round(grid.latitudes[i] + 90.0f));
+
+		int index = lat_idx * (lonSegments + 1) + lon_idx;
+		if (index >= 0 && index < vertices.size()) {
+			vertices[index].windSpeed = grid.windSpeeds[i];
+		}
+	}
+
+	// Interpolacja brakujących danych
+	for (int j = 0; j <= latSegments; ++j) {
+		for (int i = 0; i <= lonSegments; ++i) {
+			int index = j * (lonSegments + 1) + i;
+			if (vertices[index].windSpeed < 0.0f) {
+				// Prosta interpolacja liniowa z sąsiadów
+				float totalSpeed = 0;
+				int count = 0;
+				if (i > 0 && vertices[index - 1].windSpeed >= 0) { totalSpeed += vertices[index - 1].windSpeed; count++; }
+				if (i < lonSegments && vertices[index + 1].windSpeed >= 0) { totalSpeed += vertices[index + 1].windSpeed; count++; }
+				if (j > 0 && vertices[index - (lonSegments + 1)].windSpeed >= 0) { totalSpeed += vertices[index - (lonSegments + 1)].windSpeed; count++; }
+				if (j < latSegments && vertices[index + (lonSegments + 1)].windSpeed >= 0) { totalSpeed += vertices[index + (lonSegments + 1)].windSpeed; count++; }
+
+				if (count > 0) {
+					vertices[index].windSpeed = totalSpeed / count;
+				}
+				else {
+					vertices[index].windSpeed = 0; // Domyślna wartość, jeśli brak sąsiadów
+				}
+			}
+		}
+	}
+	/*
+	// Interpolacja brakujących danych (jedynie pozioma)
+	for (int j = 0; j <= latSegments; ++j) {
+		for (int i = 0; i <= lonSegments; ++i) {
+			int index = j * (lonSegments + 1) + i;
+			if (vertices[index].windSpeed < 0.0f) {
+				// Prosta interpolacja liniowa z sąsiadów
+				float totalSpeed = 0;
+				int count = 0;
+				if (i > 0 && vertices[index - 1].windSpeed >= 0) { totalSpeed += vertices[index - 1].windSpeed; count++; }
+				if (i < lonSegments && vertices[index + 1].windSpeed >= 0) { totalSpeed += vertices[index + 1].windSpeed; count++; }
+				// Usunięto sprawdzanie sąsiadów w pionie, aby zmniejszyć interpolację
+				// if (j > 0 && vertices[index - (lonSegments + 1)].windSpeed >= 0) { totalSpeed += vertices[index - (lonSegments + 1)].windSpeed; count++; }
+				// if (j < latSegments && vertices[index + (lonSegments + 1)].windSpeed >= 0) { totalSpeed += vertices[index + (lonSegments + 1)].windSpeed; count++; }
+
+				if (count > 0) {
+					vertices[index].windSpeed = totalSpeed / count;
+				}
+				else {
+					vertices[index].windSpeed = 0; // Domyślna wartość, jeśli brak sąsiadów
+				}
+			}
+		}
+	}
+	*/
+
+	// Generowanie indeksów dla trójkątów
+	overlayIndices.clear();
+	for (int j = 0; j < latSegments; ++j) {
+		for (int i = 0; i < lonSegments; ++i) {
+			int i1 = j * (lonSegments + 1) + i;
+			int i2 = i1 + 1;
+			int i3 = (j + 1) * (lonSegments + 1) + i;
+			int i4 = i3 + 1;
+
+			if (vertices[i1].windSpeed >= 0.f && vertices[i2].windSpeed >= 0.f && vertices[i3].windSpeed >= 0.f) {
+				overlayIndices.push_back(i1);
+				overlayIndices.push_back(i3);
+				overlayIndices.push_back(i2);
+			}
+			if (vertices[i2].windSpeed >= 0.f && vertices[i3].windSpeed >= 0.f && vertices[i4].windSpeed >= 0.f) {
+				overlayIndices.push_back(i2);
+				overlayIndices.push_back(i3);
+				overlayIndices.push_back(i4);
+			}
+		}
+	}
+
+
+	glBindVertexArray(overlayVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, overlayVBO);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, overlayEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, overlayIndices.size() * sizeof(unsigned int), overlayIndices.data(), GL_STATIC_DRAW);
+
+	// Pozycja
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, pos));
+	// Prędkość wiatru
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, windSpeed));
+
+	glBindVertexArray(0);
+}
 ////////////////////////////////////////////////////
 
 void updateWindDataGlobal() {
@@ -660,6 +814,16 @@ void updateWindDataGlobal() {
 
 	// Tworzenie siatki na podstawie danych o wietrze
 	grid = createGrid();
+
+	// Znajdowanie maksymalnej prędkości wiatru i zapisywanie jej w zmiennej globalnej
+	if (!grid.windSpeeds.empty()) {
+		maxWindSpeed = *std::max_element(grid.windSpeeds.begin(), grid.windSpeeds.end());
+	}
+	else {
+		maxWindSpeed = 32.6f; // Domyślna wartość, jeśli brak danych
+	}
+
+	updateOverlayMesh();
 }
 
 
@@ -709,12 +873,12 @@ void renderScene(GLFWwindow* window)
 			for (const auto& v : boundary) {
 				float lat = glm::degrees(asin(v.y));
 				float lon = glm::degrees(atan2(-v.z, v.x));
-				drawPoint2D(lat, lon, glm::vec3(1.0f, 0.0f, 0.0f)); 
+				drawPoint2D(lat, lon, glm::vec3(1.0f, 0.0f, 0.0f));
 			}
 		}
 	}
-
-	drawWindArrows();
+	if (show_tutorial) drawWindArrows();
+	if (show_overlay) drawWindOverlay();
 }
 ////////////////////////////////////////////////////
 
@@ -814,7 +978,7 @@ void init(GLFWwindow* window)
 	// loading borders
 	loadCountryBoundaries("data/ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp");
 
-	std::vector<glm::vec3> vertices; 
+	std::vector<glm::vec3> vertices;
 	countryFirstVert.clear();
 	countryVertCount.clear();
 
@@ -950,6 +1114,12 @@ void init(GLFWwindow* window)
 		exit(1);
 	}
 
+	programOverlay = shaderLoader.CreateProgram("shaders/shader_overlay.vert", "shaders/shader_overlay.frag");
+	if (programOverlay == 0) {
+		std::cerr << "Blad ladowania shaderow nakladki!" << std::endl;
+		exit(1);
+	}
+
 	// Mapa normalnych ziemi
 	std::cout << "Ladowanie mapy normalnych Ziemi..." << std::endl;
 	texture::earthNormal = Core::LoadTexture("textures/Mandalore Legends (Bump 4k).png");
@@ -1007,11 +1177,16 @@ void init(GLFWwindow* window)
 
 	glBindVertexArray(0);
 
+	// Inicjalizacja VAO/VBO/EBO dla nakładki
+	glGenVertexArrays(1, &overlayVAO);
+	glGenBuffers(1, &overlayVBO);
+	glGenBuffers(1, &overlayEBO);
+
 	// Globalne dane o wietrze
 	std::cout << "Ladowanie globalnych danych o wietrze" << std::endl;
 
-	//updateWindDataGlobal();
-	//updateWindArrowData();
+	updateWindDataGlobal();
+	updateWindArrowData();
 }
 
 ///////// Czyszczenie po zamknięciu /////////
@@ -1021,6 +1196,7 @@ void shutdown(GLFWwindow* window) {
 	shaderLoader.DeleteProgram(programAtm);
 	shaderLoader.DeleteProgram(programCloud);
 	shaderLoader.DeleteProgram(programArrowInstanced);
+	shaderLoader.DeleteProgram(programOverlay);
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
@@ -1030,6 +1206,10 @@ void shutdown(GLFWwindow* window) {
 	glDeleteTextures(1, &texture::clouds);
 	glDeleteTextures(1, &texture::earthNormal);
 	glDeleteTextures(1, &texture::cloudsT);
+
+	glDeleteVertexArrays(1, &overlayVAO);
+	glDeleteBuffers(1, &overlayVBO);
+	glDeleteBuffers(1, &overlayEBO);
 }
 ////////////////////////////////////////////////////
 
@@ -1077,7 +1257,7 @@ void renderLoop(GLFWwindow* window) {
 		ImVec2 viewport_size = ImGui::GetMainViewport()->Size;
 
 		///////// Floating Button do otwierania QuickMenu /////////
-	
+
 		ImVec2 button_pos = ImVec2(viewport_pos.x + 10, viewport_pos.y + viewport_size.y - 64);
 		ImGui::SetNextWindowPos(button_pos, ImGuiCond_Always);
 		ImGui::SetNextWindowBgAlpha(0.0f);
@@ -1112,7 +1292,7 @@ void renderLoop(GLFWwindow* window) {
 
 		///////// Quick Menu /////////
 		std::string dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4);
-	
+
 		ImVec2 window_pos = ImVec2(viewport_pos.x, viewport_pos.y + viewport_size.y - ImGuiHeight);
 
 		ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always);

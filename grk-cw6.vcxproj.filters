@@ -202,5 +202,7 @@
     <None Include="shader_arrow_instanced.vert">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="shader_overlay.vert" />
+    <None Include="shader_overlay.frag" />
   </ItemGroup>
 </Project>
