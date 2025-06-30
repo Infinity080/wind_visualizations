@@ -837,6 +837,7 @@ void renderScene(GLFWwindow* window)
 	float time = glfwGetTime();
 
 	// Rysowanie planety
+	glUniform3f(glGetUniformLocation(programTex, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glm::mat4 rotatedModel = planetModelMatrix * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0, 1, 0));
 	drawObjectTexture(sphereContext, rotatedModel, texture::earth, texture::earthNormal);
 	// Drawing boundaries
