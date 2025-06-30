@@ -837,7 +837,8 @@ void renderScene(GLFWwindow* window)
 	float time = glfwGetTime();
 
 	// Rysowanie planety
-	drawObjectTexture(sphereContext, planetModelMatrix, texture::earth, texture::earthNormal);
+	glm::mat4 rotatedModel = planetModelMatrix * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0, 1, 0));
+	drawObjectTexture(sphereContext, rotatedModel, texture::earth, texture::earthNormal);
 	// Drawing boundaries
 	glm::mat4 PerspectivexCamera = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f));//reverse the earth scaling

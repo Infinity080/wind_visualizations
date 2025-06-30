@@ -36,7 +36,7 @@ void main()
     float spec = pow(max(dot(normal, halfwayDir), 0.0), shininess)*0.5f;
 
     // Tekstura
-    vec3 surfaceColor = (texture(colorTexture, texCoord)).rgb;
+    vec3 surfaceColor = texture(colorTexture, vec2(texCoord.x, 1.0 - texCoord.y)).rgb;
 
     // Miksowanie oœwietlenia
     float lighting = clamp(AMBIENT + diffuse, 0.0, 1.0);
