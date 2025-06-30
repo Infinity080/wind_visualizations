@@ -22,29 +22,29 @@ C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(485,33): warning C4101: "e
 C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(718,27): warning C4018: "<": niezgodność typu ze znakiem/bez znaku
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(835,13): warning C4244: "inicjowanie": konwersja z "double" do "float", możliwa utrata danych
-  (kompilowanie pliku źródłowego „src/main.cpp”)
-  
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(944,23): warning C4244: "=": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(837,13): warning C4244: "inicjowanie": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
 C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(945,23): warning C4244: "=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(966,27): warning C4244: "=": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(946,23): warning C4244: "=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(967,30): warning C4244: "=": konwersja z "genType" do "float", możliwa utrata danych
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(967,30): warning C4244:         with
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(967,30): warning C4244:         [
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(967,30): warning C4244:             genType=double
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(967,30): warning C4244:         ]
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(967,27): warning C4244: "=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
-C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(1070,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(968,30): warning C4244: "=": konwersja z "genType" do "float", możliwa utrata danych
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(968,30): warning C4244:         with
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(968,30): warning C4244:         [
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(968,30): warning C4244:             genType=double
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(968,30): warning C4244:         ]
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
 C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(1071,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
+  (kompilowanie pliku źródłowego „src/main.cpp”)
+  
+C:\Users\Damia\Downloads\Projekt_GRK\src\Wind_App.hpp(1072,22): warning C4244: "+=": konwersja z "double" do "float", możliwa utrata danych
   (kompilowanie pliku źródłowego „src/main.cpp”)
   
 dbfopen.obj : warning LNK4075: zignorowano opcję „/EDITANDCONTINUE” z powodu określenia opcji „/INCREMENTAL:NO”

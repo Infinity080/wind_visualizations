@@ -71,6 +71,8 @@
     <None Include="shaders\shader_5_1_pbr.vert" />
     <None Include="shaders\shader_5_1_tex.frag" />
     <None Include="shaders\shader_5_1_tex.vert" />
+    <None Include="shaders\shader_overlay.frag" />
+    <None Include="shaders\shader_overlay.vert" />
     <None Include="shader_arrow_instanced.vert" />
     <None Include="shader_overlay.frag" />
     <None Include="shader_overlay.vert" />

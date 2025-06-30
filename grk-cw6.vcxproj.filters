@@ -204,5 +204,11 @@
     </None>
     <None Include="shader_overlay.vert" />
     <None Include="shader_overlay.frag" />
+    <None Include="shaders\shader_overlay.frag">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\shader_overlay.vert">
+      <Filter>Shader Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

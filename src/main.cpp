@@ -92,7 +92,16 @@ int main(int argc, char** argv)
 	style.FrameRounding = 12.0f;
 
 	ImGuiIO& io = ImGui::GetIO();
-	ImFont* segoeFont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeuib.ttf", 24.0f);
+
+	static const ImWchar polish_ranges[] = {
+	0x0020, 0x00FF,
+	0x0100, 0x017F,
+	0x0180, 0x024F,
+	0,
+	};
+
+	
+	ImFont* segoeFont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeuib.ttf", 24.0f, NULL, polish_ranges);
 	if (segoeFont) io.FontDefault = segoeFont;
 
 	// Setup Platform/Renderer bindings

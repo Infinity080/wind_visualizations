@@ -140,7 +140,7 @@ bool isUpdating = false;
 GLuint overlayVAO, overlayVBO, overlayEBO;
 std::vector<unsigned int> overlayIndices;
 float maxWindSpeed = 32.6f; // Maksymalna prędkość wiatru do normalizacji kolorów
-
+std::string max_speed_str = std::to_string(static_cast<int>(maxWindSpeed));
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
 	float lon = glm::radians(lonInput);
@@ -818,9 +818,11 @@ void updateWindDataGlobal() {
 	// Znajdowanie maksymalnej prędkości wiatru i zapisywanie jej w zmiennej globalnej
 	if (!grid.windSpeeds.empty()) {
 		maxWindSpeed = *std::max_element(grid.windSpeeds.begin(), grid.windSpeeds.end());
+		max_speed_str = std::to_string(static_cast<int>(maxWindSpeed));
 	}
 	else {
 		maxWindSpeed = 32.6f; // Domyślna wartość, jeśli brak danych
+		max_speed_str = std::to_string(static_cast<int>(maxWindSpeed));
 	}
 
 	updateOverlayMesh();
@@ -835,8 +837,7 @@ void renderScene(GLFWwindow* window)
 	float time = glfwGetTime();
 
 	// Rysowanie planety
-	drawObjectColor(sphereContext, planetModelMatrix, glm::vec3(1.7f, 1.7f, 2.55f));
-
+	drawObjectTexture(sphereContext, planetModelMatrix, texture::earth, texture::earthNormal);
 	// Drawing boundaries
 	glm::mat4 PerspectivexCamera = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f));//reverse the earth scaling
@@ -1093,7 +1094,7 @@ void init(GLFWwindow* window)
 		std::cerr << "Blad ladowania shaderow tekstur!" << std::endl;
 		exit(1);
 	}
-
+	/*
 	// Shader atmosfery
 	programAtm = shaderLoader.CreateProgram("shaders/shader_5_1_atm.vert", "shaders/shader_5_1_atm.frag");
 	if (programAtm == 0) {
@@ -1107,7 +1108,7 @@ void init(GLFWwindow* window)
 		std::cerr << "Blad ladowania shaderow chmur!" << std::endl;
 		exit(1);
 	}
-
+	*/
 	programArrowInstanced = shaderLoader.CreateProgram("shaders/shader_arrow_instanced.vert", "shaders/shader_5_1.frag");
 	if (programArrowInstanced == 0) {
 		std::cerr << "Blad ladowania shaderow instancingu strzalek!" << std::endl;
@@ -1120,26 +1121,31 @@ void init(GLFWwindow* window)
 		exit(1);
 	}
 
+	// Tekstura Ziemi
+	std::cout << "Ladowanie tekstury Ziemi..." << std::endl;
+	//texture::earth = Core::LoadTiledTexture("textures/tiles/tile_%d_%d.png", 22, 11, 1024, 1024);
+	texture::earth = Core::LoadTexture("textures/earth_smaller.jpg");
+	if (texture::earth == 0) {
+		std::cerr << "Blad ladowania tekstury Ziemi!" << std::endl;
+	}
+
 	// Mapa normalnych ziemi
 	std::cout << "Ladowanie mapy normalnych Ziemi..." << std::endl;
-	texture::earthNormal = Core::LoadTexture("textures/Mandalore Legends (Bump 4k).png");
+	texture::earthNormal = Core::LoadTexture("textures/earth_bump.jpg");
 	if (texture::earthNormal == 0) { std::cerr << "Blad ladowania mapy normalnych Ziemi!" << std::endl; }
-
-	// Mapa normalnych chmur
-	std::cout << "Ladowanie mapy bump/normal chmur..." << std::endl;
-	texture::cloudsT = Core::LoadTexture("textures/Taris (Clouds Bump 4k).png");
-	if (texture::cloudsT == 0) { std::cerr << "Blad ladowania mapy bump/normal chmur!" << std::endl; }
 
 	// Model kuli (Ziemi)
 	std::cout << "Ladowanie modelu kuli..." << std::endl;
 	loadModelToContext("./models/sphere2.obj", sphereContext);
 
-	// Tekstura Ziemi
-	std::cout << "Ladowanie tekstury Ziemi..." << std::endl;
-	texture::earth = Core::LoadTexture("textures/Mandalore Legends (Diffuse 4k).png");
-	if (texture::earth == 0) {
-		std::cerr << "Blad ladowania tekstury Ziemi!" << std::endl;
-	}
+	/*
+	// Mapa normalnych chmur
+	std::cout << "Ladowanie mapy bump/normal chmur..." << std::endl;
+	texture::cloudsT = Core::LoadTexture("textures/Taris (Clouds Bump 4k).png");
+	if (texture::cloudsT == 0) { std::cerr << "Blad ladowania mapy bump/normal chmur!" << std::endl; }
+
+
+
 
 	// Tekstura chmur
 	std::cout << "Ladowanie tekstury chmur..." << std::endl;
@@ -1147,10 +1153,13 @@ void init(GLFWwindow* window)
 	if (texture::clouds == 0) {
 		std::cerr << "Blad ladowania tekstury Chmur!" << std::endl;
 	}
+	*/
 
-	std::cout << "Inicjalizacja zakonczona." << std::endl;
 	// loading arrow model
 	loadModelToContext("./models/arrow.obj", arrowContext);
+
+	std::cout << "Inicjalizacja zakonczona." << std::endl;
+
 
 	// Konfiguracja renderingu instancyjnego dla strzałek
 	glGenBuffers(1, &arrowInstanceVBO);
@@ -1193,8 +1202,10 @@ void init(GLFWwindow* window)
 void shutdown(GLFWwindow* window) {
 	shaderLoader.DeleteProgram(program);
 	shaderLoader.DeleteProgram(programTex);
+	/*
 	shaderLoader.DeleteProgram(programAtm);
 	shaderLoader.DeleteProgram(programCloud);
+	*/
 	shaderLoader.DeleteProgram(programArrowInstanced);
 	shaderLoader.DeleteProgram(programOverlay);
 
@@ -1203,9 +1214,14 @@ void shutdown(GLFWwindow* window) {
 	ImGui::DestroyContext();
 
 	glDeleteTextures(1, &texture::earth);
-	glDeleteTextures(1, &texture::clouds);
+	// glDeleteTextures(1, &texture::clouds);
 	glDeleteTextures(1, &texture::earthNormal);
-	glDeleteTextures(1, &texture::cloudsT);
+	// glDeleteTextures(1, &texture::cloudsT);
+	glDeleteTextures(1, &clock_icon);
+	glDeleteTextures(1, &move_icon);
+	glDeleteTextures(1, &overlay_icon);
+	glDeleteTextures(1, &tutorial_icon);
+	glDeleteTextures(1, &date_icon);
 
 	glDeleteVertexArrays(1, &overlayVAO);
 	glDeleteBuffers(1, &overlayVBO);
@@ -1267,27 +1283,29 @@ void renderLoop(GLFWwindow* window) {
 			ImGuiWindowFlags_NoFocusOnAppearing |
 			ImGuiWindowFlags_NoNav;
 
-		ImGui::Begin("##floating_button", nullptr, button_flags);
+		if (!isQuickMenuOpen) {
+			ImGui::Begin("##floating_button", nullptr, button_flags);
 
-		// Zapamietujemy oryginalne style, aby przywrócic po przycisku
-		ImVec4 old_bg = ImGui::GetStyleColorVec4(ImGuiCol_Button);
-		ImVec4 old_bg_hovered = ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);
-		ImVec4 old_bg_active = ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive);
-		float old_rounding = ImGui::GetStyle().FrameRounding;
+			// Zapamietujemy oryginalne style, aby przywrócic po przycisku
+			ImVec4 old_bg = ImGui::GetStyleColorVec4(ImGuiCol_Button);
+			ImVec4 old_bg_hovered = ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);
+			ImVec4 old_bg_active = ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive);
+			float old_rounding = ImGui::GetStyle().FrameRounding;
 
-		// Ustawiamy styl dla okraglego przycisku
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.71f, 0.847f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.79f, 0.89f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.50f, 0.60f, 1.0f));
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 50.0f);
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 10));
+			// Ustawiamy styl dla okraglego przycisku
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.71f, 0.847f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.79f, 0.89f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.50f, 0.60f, 1.0f));
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 50.0f);
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 10));
 
-		if (ImGui::Button("Menu", ImVec2(100, 0))) isQuickMenuOpen = true;
+			if (ImGui::Button(u8"Menu", ImVec2(100, 0))) isQuickMenuOpen = true;
 
-		ImGui::PopStyleVar(2);
-		ImGui::PopStyleColor(3);
+			ImGui::PopStyleVar(2);
+			ImGui::PopStyleColor(3);
 
-		ImGui::End();
+			ImGui::End();
+		}
 		////////////////////////////////////////////////////
 
 		///////// Quick Menu /////////
@@ -1297,6 +1315,7 @@ void renderLoop(GLFWwindow* window) {
 
 		ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always);
 		ImGui::SetNextWindowSize(ImVec2(ImGuiWidth, ImGuiHeight), ImGuiCond_Always);
+		ImGui::SetNextWindowBgAlpha(0.85f);
 		if (isQuickMenuOpen && ImGui::Begin("title###Imguilayout", &isQuickMenuOpen, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar))
 		{
 			/// @separator
@@ -1310,7 +1329,7 @@ void renderLoop(GLFWwindow* window) {
 			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			//ImGui::AlignTextToFramePadding();
-			ImGui::TextUnformatted("Predkosc animacji");
+			ImGui::TextUnformatted(u8"Prędkość animacji");
 			/// @end Text
 
 			/// @begin Slider
@@ -1331,7 +1350,7 @@ void renderLoop(GLFWwindow* window) {
 			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			//ImGui::AlignTextToFramePadding();
-			ImGui::TextUnformatted("Predkosc ruchu kamery");
+			ImGui::TextUnformatted(u8"Prędkość ruchu kamery");
 			/// @end Text
 
 			/// @begin Slider
@@ -1352,7 +1371,7 @@ void renderLoop(GLFWwindow* window) {
 			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			//ImGui::AlignTextToFramePadding();
-			ImGui::TextUnformatted("Nakladka predkosci wiatru");
+			ImGui::TextUnformatted(u8"Nakładka prędkości wiatru");
 			/// @end Text
 
 			/// @begin CheckBox
@@ -1369,7 +1388,7 @@ void renderLoop(GLFWwindow* window) {
 			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			//ImGui::AlignTextToFramePadding();
-			ImGui::TextUnformatted("Samouczek");
+			ImGui::TextUnformatted(u8"Samouczek");
 			/// @end Text
 
 			/// @begin CheckBox
@@ -1386,7 +1405,7 @@ void renderLoop(GLFWwindow* window) {
 			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			//ImGui::AlignTextToFramePadding();
-			ImGui::TextUnformatted("Data: ");
+			ImGui::TextUnformatted(u8"Data: ");
 			/// @end Text
 
 			/// @begin Text
@@ -1398,7 +1417,7 @@ void renderLoop(GLFWwindow* window) {
 			/// @end Text
 
 			/// @begin Button
-			if (ImGui::Button("-1 Dzien", ImVec2(100, 0)))
+			if (ImGui::Button(u8"-1 Dzień", ImVec2(100, 0)))
 			{
 				if (daysBefore + 1 >= 0 && daysBefore + 1 <= 7) {
 					daysBefore += 1;
@@ -1410,7 +1429,7 @@ void renderLoop(GLFWwindow* window) {
 
 			/// @begin Button
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			if (ImGui::Button("+1 Dzien", ImVec2(100, 0)))
+			if (ImGui::Button(u8"+1 Dzień", ImVec2(100, 0)))
 			{
 				if (daysBefore - 1 >= 0 && daysBefore - 1 <= 7) {
 					daysBefore -= 1;
@@ -1422,7 +1441,7 @@ void renderLoop(GLFWwindow* window) {
 
 			/// @begin Button
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			if (ImGui::Button("Dzisiaj", ImVec2(100, 0))) {
+			if (ImGui::Button(u8"Dzisiaj", ImVec2(100, 0))) {
 				daysBefore = 0;
 				date = GetFormattedDate(-daysBefore);
 				dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4);
@@ -1430,7 +1449,7 @@ void renderLoop(GLFWwindow* window) {
 			/// @end Button
 
 			/// @begin Button
-			if (ImGui::Button("Zmien date", ImVec2(320, 0)) && !isUpdating)
+			if (ImGui::Button(u8"Zmień datę", ImVec2(320, 0)) && !isUpdating)
 			{
 				updateWindDataGlobal();
 				updateWindArrowData();
@@ -1439,7 +1458,7 @@ void renderLoop(GLFWwindow* window) {
 			/// @end Button
 
 			/// @begin Button
-			if (ImGui::Button("Zamknij", ImVec2(168, 32)))
+			if (ImGui::Button(u8"Zamknij", ImVec2(168, 32)))
 			{
 				isQuickMenuOpen = false;
 			}
@@ -1452,6 +1471,46 @@ void renderLoop(GLFWwindow* window) {
 
 		////////////////////////////////////////////////////
 
+		///////// Legenda Mapy /////////
+		ImGuiWindowFlags legend_flags = ImGuiWindowFlags_NoDecoration |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoFocusOnAppearing |
+			ImGuiWindowFlags_NoNav;
+
+		const float padding = 10.0f;
+		ImVec2 legend_pos = ImVec2(viewport_pos.x + viewport_size.x - padding,
+			viewport_pos.y + viewport_size.y - padding);
+		ImVec2 legend_pivot = ImVec2(1.0f, 1.0f); // Ustawienie punktu odniesienia na prawy dolny róg
+		ImGui::SetNextWindowPos(legend_pos, ImGuiCond_Always, legend_pivot);
+		ImGui::SetNextWindowBgAlpha(0.75f);
+		ImGui::SetNextWindowSize(ImVec2(300, 100), ImGuiCond_Always);
+		if (ImGui::Begin("Legenda", nullptr, legend_flags)) {
+			ImGui::Text(u8"Predkość wiatru (m/s)");
+			ImGui::Separator();
+
+			float w = 284.0f;
+			float h = 20.0f;
+			ImDrawList* draw_list = ImGui::GetWindowDrawList();
+			ImVec2 p = ImGui::GetCursorScreenPos();
+			ImU32 col_blue = ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 1.0f, 1.0f));
+			ImU32 col_green = ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+
+			draw_list->AddRectFilledMultiColor(p, ImVec2(p.x + w, p.y + h), col_blue, col_green, col_green, col_blue);
+			ImGui::Dummy(ImVec2(w, h));
+
+			ImGui::Text("0.0");
+			ImGui::SameLine();
+
+			
+			float text_width = ImGui::CalcTextSize(max_speed_str.c_str()).x;
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - text_width);
+			ImGui::Text("%s", max_speed_str.c_str());
+		}
+		ImGui::End();
+
+		////////////////////////////////////////////////////
 
 		// Render sceny
 		renderScene(window);
