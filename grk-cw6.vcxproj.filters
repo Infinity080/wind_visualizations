@@ -202,8 +202,6 @@
     <None Include="shader_arrow_instanced.vert">
       <Filter>Shader Files</Filter>
     </None>
-    <None Include="shader_overlay.vert" />
-    <None Include="shader_overlay.frag" />
     <None Include="shaders\shader_overlay.frag">
       <Filter>Shader Files</Filter>
     </None>
@@ -214,6 +212,12 @@
       <Filter>Shader Files</Filter>
     </None>
     <None Include="shaders\shader_wind_lines.frag">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\shader_skybox.vert">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\shader_skybox.frag">
       <Filter>Shader Files</Filter>
     </None>
   </ItemGroup>

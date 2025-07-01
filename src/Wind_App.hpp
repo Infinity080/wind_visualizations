@@ -33,6 +33,7 @@ namespace texture {
 	GLuint clouds;
 	GLuint earthNormal;
 	GLuint cloudsT;
+	GLuint skybox;
 }
 
 // Inicjalizacja zmiennych dla siatki
@@ -89,11 +90,14 @@ GLuint programCloud; // Program do rysowania chmur
 GLuint programArrowInstanced; // Program do rysowania strzałek za pomocą instancingu
 GLuint programOverlay; // Program do rysowania nakładki prędkości wiatru
 GLuint programWindLines; // Program do rysowania linii wiatru
+GLuint programSkybox; // Program do rysowania skyboxa
 
 Core::Shader_Loader shaderLoader;
 
 Core::RenderContext sphereContext;
 Core::RenderContext arrowContext;
+Core::RenderContext skyboxContext;
+
 GLuint arrowInstanceVBO; // VBO dla danych instancji strzałek (macierze modelu)
 std::vector<glm::mat4> arrowModelMatrices; // Wektor macierzy modelu dla każdej strzałki
 
@@ -367,6 +371,33 @@ void drawPoint2D(float lat, float lon, glm::vec3 color) {
 	glBindVertexArray(0);
 	glDeleteVertexArrays(1, &pointVAO);
 	glDeleteBuffers(1, &pointVBO);
+	glUseProgram(0);
+}
+
+void drawSkybox() {
+	// Wyłączenie zapisu głębokości i włączenie tylko odczytu
+	glDepthMask(GL_FALSE);
+	glDepthFunc(GL_LEQUAL);
+
+	GLuint prog = programSkybox;
+	glUseProgram(prog);
+
+	// Macierz widoku bez translacji
+	glm::mat4 view = glm::mat4(glm::mat3(createCameraMatrix()));
+	glm::mat4 projection = createPerspectiveMatrix();
+
+	glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, (float*)&view);
+	glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, (float*)&projection);
+
+	// Ustawienie tekstury skyboxa
+	Core::SetActiveTexture(texture::skybox, "skybox", prog, 0);
+
+	// Rysowanie skyboxa (jako duża kula)
+	Core::DrawContext(skyboxContext);
+
+	// Przywrócenie ustawień głębokości
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LESS);
 	glUseProgram(0);
 }
 
@@ -895,6 +926,9 @@ void renderScene(GLFWwindow* window)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	float time = glfwGetTime();
 
+	// Rysowanie skyboxa
+	drawSkybox();
+
 	// Rysowanie planety
 	glm::mat4 rotatedModel = planetModelMatrix * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0, 1, 0));
 	if (show_earthmap) drawObjectTexture(sphereContext, rotatedModel, texture::earth, texture::earthNormal);
@@ -1187,6 +1221,13 @@ void init(GLFWwindow* window)
 		exit(1);
 	}
 
+	// Shader skyboxa
+	programSkybox = shaderLoader.CreateProgram("shaders/shader_skybox.vert", "shaders/shader_skybox.frag");
+	if (programSkybox == 0) {
+		std::cerr << "Blad ladowania shaderow skyboxa!" << std::endl;
+		exit(1);
+	}
+
 	// Tekstura Ziemi
 	std::cout << "Ladowanie tekstury Ziemi..." << std::endl;
 	//texture::earth = Core::LoadTiledTexture("textures/tiles/tile_%d_%d.png", 22, 11, 1024, 1024);
@@ -1195,10 +1236,22 @@ void init(GLFWwindow* window)
 		std::cerr << "Blad ladowania tekstury Ziemi!" << std::endl;
 	}
 
+
 	// Mapa normalnych ziemi
 	std::cout << "Ladowanie mapy normalnych Ziemi..." << std::endl;
 	texture::earthNormal = Core::LoadTexture("textures/earth_bump.jpg");
 	if (texture::earthNormal == 0) { std::cerr << "Blad ladowania mapy normalnych Ziemi!" << std::endl; }
+
+	// Tekstura skyboxa
+	std::cout << "Ladowanie tekstury skyboxa..." << std::endl;
+	texture::skybox = Core::LoadTexture("textures/skybox.jpg");
+	if (texture::skybox == 0) {
+		std::cerr << "Blad ladowania tekstury skyboxa!" << std::endl;
+	}
+
+	// Model kuli dla skyboxa
+	std::cout << "Ladowanie modelu kuli dla skyboxa..." << std::endl;
+	loadModelToContext("./models/sphere2.obj", skyboxContext);
 
 	// Model kuli (Ziemi)
 	std::cout << "Ladowanie modelu kuli..." << std::endl;
@@ -1314,6 +1367,7 @@ void shutdown(GLFWwindow* window) {
 	*/
 	shaderLoader.DeleteProgram(programOverlay);
 	shaderLoader.DeleteProgram(programWindLines);
+	shaderLoader.DeleteProgram(programSkybox);
 	glDeleteVertexArrays(1, &windLinesVAO);
 	glDeleteBuffers(1, &windLinesVBO);
 	glDeleteBuffers(1, &windLinesInstanceVBO);
@@ -1325,6 +1379,7 @@ void shutdown(GLFWwindow* window) {
 	// glDeleteTextures(1, &texture::clouds);
 	glDeleteTextures(1, &texture::earthNormal);
 	// glDeleteTextures(1, &texture::cloudsT);
+	glDeleteTextures(1, &texture::skybox);
 	glDeleteTextures(1, &clock_icon);
 	glDeleteTextures(1, &move_icon);
 	glDeleteTextures(1, &overlay_icon);
