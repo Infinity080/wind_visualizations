@@ -63,8 +63,23 @@ int selectedCountryId = -1;
 
 Grid grid;
 
-float gridTileSize = 11.0f; // Rozmiar pojedynczego kafelka siatki - docelowo 1.0 lub 0.5f
+float gridTileSize = 11.0f; // Rozmiar pojedynczego kafelka siatki
 
+// Zmienne dla linii wiatru
+struct WindLineData {
+	glm::vec3 startPos;     // Pozycja początkowa linii
+	glm::vec3 direction;    // Kierunek wiatru (znormalizowany)
+	float speed;            // Prędkość wiatru
+	float length;           // Długość linii
+};
+
+GLuint windLinesVAO, windLinesVBO, windLinesInstanceVBO;
+std::vector<WindLineData> windLineData;
+std::vector<glm::mat4> windLineMatrices;
+
+const int LINES_PER_POINT = 1; // Liczba linii na punkt siatki
+const float LINE_LENGTH = 2.0f; // Długość linii wiatru
+const float LINE_THICKNESS = 0.25f; // Grubość linii wiatru
 
 // Inicjalizacja zmiennych dla programow shaderow
 GLuint program; // Podstawowy program do rysowania kolorem
@@ -73,6 +88,7 @@ GLuint programAtm; // Program do rysowania atmosfery
 GLuint programCloud; // Program do rysowania chmur
 GLuint programArrowInstanced; // Program do rysowania strzałek za pomocą instancingu
 GLuint programOverlay; // Program do rysowania nakładki prędkości wiatru
+GLuint programWindLines; // Program do rysowania linii wiatru
 
 Core::Shader_Loader shaderLoader;
 
@@ -121,16 +137,18 @@ std::string windDataGlobal; // Globalne dane o wietrze
 int cameraSpeed = 100;
 int animationSpeed = 100;
 bool show_overlay = true;
+bool show_earthmap = true;
 bool show_tutorial = true;
 int daysBefore = 0;
 bool isQuickMenuOpen = false;
 GLuint clock_icon = 0;
 GLuint move_icon = 0;
 GLuint overlay_icon = 0;
+GLuint earthmap_icon = 0;
 GLuint tutorial_icon = 0;
 GLuint date_icon = 0;
 float ImGuiWidth = 460.0f;
-float ImGuiHeight = 280.0f;
+float ImGuiHeight = 314.0f;
 
 std::string date = GetFormattedDate(-daysBefore); // Dzisiejsza data
 
@@ -352,7 +370,7 @@ void drawPoint2D(float lat, float lon, glm::vec3 color) {
 	glUseProgram(0);
 }
 
-
+/*
 void drawArrow(float latInput, float lonInput, float rotation, glm::vec3 color) {
 	glm::vec3 normal = glm::normalize(latLonToXYZ(latInput, lonInput)); // wektor normalny do planety
 	glm::vec3 point = normal * (modelRadius + 1.0f); // punkt strzałki
@@ -370,17 +388,18 @@ void drawArrow(float latInput, float lonInput, float rotation, glm::vec3 color) 
 
 	drawObjectColor(arrowContext, modelMatrix, color);
 }
+*/
 
 // Funkcja do rysowania obiektu z teksturą
 void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint colorTextureID, GLuint normalMapTextureID) {
 	GLuint prog = programTex;
 	glUseProgram(prog);
-
 	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
+	glUniform3f(glGetUniformLocation(prog, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glUniformMatrix4fv(glGetUniformLocation(prog, "transformation"), 1, GL_FALSE, (float*)&transformation);
 	glUniformMatrix4fv(glGetUniformLocation(prog, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
-	glUniform3f(glGetUniformLocation(prog, "lightPos"), -5.f, 3.f, 3.f);
+	// glUniform3f(glGetUniformLocation(prog, "lightPos"), -5.f, 3.f, 3.f);
 	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 
 	Core::SetActiveTexture(colorTextureID, "colorTexture", prog, 0);
@@ -451,36 +470,69 @@ void drawObjectClouds(Core::RenderContext& context, glm::mat4 modelMatrix, GLuin
 }
 
 // Funkcja do aktualizacji danych o strzałkach wiatru dla renderingu instancyjnego
+
 void updateWindArrowData() {
-	arrowModelMatrices.clear();
+	windLineData.clear();
+	windLineMatrices.clear();
+
 	if (grid.numTiles == 0) {
 		return;
 	}
 
 	try {
-		int timeIndex = 0;
-
-		arrowModelMatrices.reserve(grid.numTiles);
+		windLineData.reserve(grid.numTiles * LINES_PER_POINT);
+		windLineMatrices.reserve(grid.numTiles * LINES_PER_POINT);
 
 		for (size_t i = 0; i < grid.numTiles; ++i) {
 			try {
 				float lat = grid.latitudes[i];
 				float lon = grid.longitudes[i];
-				float arrowAngle = grid.windAngles[i];
-				float arrowSpeed = grid.windSpeeds[i];
+				float windAngle = grid.windAngles[i];
+				float windSpeed = grid.windSpeeds[i];
 
+				// Oblicz pozycję na powierzchni planety
 				glm::vec3 normal = glm::normalize(latLonToXYZ(lat, lon));
-				glm::vec3 point = normal * (modelRadius + 1.0f);
+				glm::vec3 basePoint = normal * (modelRadius + 0.01f);
+
+				// Oblicz kierunek wiatru w lokalnym układzie współrzędnych
 				glm::vec3 Y = glm::normalize(glm::cross(glm::vec3(0, 1, 0), normal));
 				glm::vec3 X = glm::normalize(glm::cross(normal, Y));
-				float alpha = glm::radians(arrowAngle);
-				glm::vec3 rot = glm::normalize(X * glm::cos(alpha) + Y * glm::sin(alpha));
-				glm::mat4 modelMatrix = planetModelMatrix
-					* glm::translate(glm::mat4(1), point)
-					* glm::mat4(glm::rotation(glm::vec3(0, 0, 1), rot))
-					* glm::scale(glm::mat4(1), glm::vec3(arrowScaleModel));
+				float alpha = glm::radians(windAngle);
+				glm::vec3 windDirection = glm::normalize(X * glm::cos(alpha) + Y * glm::sin(alpha));
 
-				arrowModelMatrices.push_back(modelMatrix);
+				// Utwórz kilka linii dla tego punktu z różnymi offsetami
+				for (int lineIdx = 0; lineIdx < LINES_PER_POINT; ++lineIdx) {
+					WindLineData lineData;
+
+					// Różne offsety dla każdej linii
+					float lineOffset = (lineIdx - LINES_PER_POINT / 2.0f) * 0.002f;
+					glm::vec3 offsetPos = basePoint + normal * lineOffset;
+
+					lineData.startPos = offsetPos;
+					lineData.direction = windDirection;
+					lineData.speed = windSpeed;
+					lineData.length = LINE_LENGTH * (0.8f + 0.4f * (lineIdx + 1) / LINES_PER_POINT);
+
+					windLineData.push_back(lineData);
+
+					// Utwórz macierz transformacji dla linii
+					// Najpierw stwórz macierz rotacji, aby linia była skierowana w kierunku wiatru
+					glm::vec3 up = normal;
+					glm::vec3 right = glm::normalize(glm::cross(windDirection, up));
+					glm::vec3 forward = windDirection;
+
+					glm::mat4 rotationMatrix = glm::mat4(1.0f);
+					rotationMatrix[0] = glm::vec4(forward, 0.0f);
+					rotationMatrix[1] = glm::vec4(right, 0.0f);
+					rotationMatrix[2] = glm::vec4(up, 0.0f);
+
+					glm::mat4 modelMatrix = planetModelMatrix
+						* glm::translate(glm::mat4(1), lineData.startPos)
+						* rotationMatrix
+						* glm::scale(glm::mat4(1), glm::vec3(lineData.length, LINE_THICKNESS, LINE_THICKNESS));
+
+					windLineMatrices.push_back(modelMatrix);
+				}
 			}
 			catch (const std::exception& e) {
 				// Jeśli wystąpi błąd podczas przetwarzania konkretnego punktu, pomijamy go
@@ -488,14 +540,68 @@ void updateWindArrowData() {
 		}
 	}
 	catch (const std::exception& e) {
-		std::cerr << "Błąd podczas przetwarzania danych o wietrze: " << e.what() << std::endl;
+		std::cerr << "Blad podczas przetwarzania danych o wietrze: " << e.what() << std::endl;
 		return;
 	}
 
 	// Aktualizacja VBO z macierzami modeli
-	glBindBuffer(GL_ARRAY_BUFFER, arrowInstanceVBO);
-	glBufferData(GL_ARRAY_BUFFER, arrowModelMatrices.size() * sizeof(glm::mat4), arrowModelMatrices.data(), GL_DYNAMIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	if (!windLineMatrices.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, windLinesInstanceVBO);
+		glBufferData(GL_ARRAY_BUFFER, windLineMatrices.size() * sizeof(glm::mat4), windLineMatrices.data(), GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+}
+
+// Poprawiona funkcja do rysowania animowanych linii wiatru
+void drawWindArrows() {
+	if (windLineMatrices.empty()) {
+		std::cout << "Brak danych linii wiatru do narysowania" << std::endl;
+		return;
+	}
+
+	// Włączenie blendingu dla przezroczystości
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDepthMask(GL_FALSE);
+
+	GLuint prog = programWindLines;
+	glUseProgram(prog);
+
+	// Pobierz czas dla animacji z wyższą precyzją
+	float time = static_cast<float>(glfwGetTime());
+	float animSpeed = animationSpeed / 100.0f;
+
+	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
+	glUniformMatrix4fv(glGetUniformLocation(prog, "viewProjectionMatrix"), 1, GL_FALSE, (float*)&viewProjectionMatrix);
+	glUniform3f(glGetUniformLocation(prog, "baseColor"), 1.0f, 1.0f, 1.0f);
+	glUniform1f(glGetUniformLocation(prog, "time"), time * animSpeed);
+	glUniform1f(glGetUniformLocation(prog, "maxWindSpeed"), maxWindSpeed);
+	// Przekaż dane o prędkości wiatru
+	std::vector<float> speedData;
+	speedData.reserve(windLineData.size());
+	for (const auto& lineData : windLineData) {
+		speedData.push_back(lineData.speed);
+	}
+
+	GLuint speedVBO;
+	glGenBuffers(1, &speedVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, speedVBO);
+	glBufferData(GL_ARRAY_BUFFER, speedData.size() * sizeof(float), speedData.data(), GL_DYNAMIC_DRAW);
+
+	glBindVertexArray(windLinesVAO);
+
+	glEnableVertexAttribArray(7);
+	glVertexAttribPointer(7, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+	glVertexAttribDivisor(7, 1);
+
+	// Rysuj linie jako instancjonowane prostopadłościany
+	glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, windLineMatrices.size());
+
+	glBindVertexArray(0);
+	glDeleteBuffers(1, &speedVBO);
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+	glUseProgram(0);
 }
 
 double calculateWindAngle(double u, double v) {
@@ -504,29 +610,6 @@ double calculateWindAngle(double u, double v) {
 	double angleDeg = angleRad * 180.0 / PI;
 	if (angleDeg < 0) angleDeg += 360.0;
 	return angleDeg;
-}
-
-// Funkcja do rysowania strzałek wiatru
-void drawWindArrows() {
-
-	if (arrowModelMatrices.empty()) {
-		return;
-	}
-
-	GLuint prog = programArrowInstanced;
-	glUseProgram(prog);
-
-	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
-	glUniformMatrix4fv(glGetUniformLocation(prog, "viewProjectionMatrix"), 1, GL_FALSE, (float*)&viewProjectionMatrix);
-	glUniform3f(glGetUniformLocation(prog, "color"), 1.0f, 1.0f, 1.0f);
-	glUniform3f(glGetUniformLocation(prog, "lightPos"), -5.f, 3.f, 3.f);
-	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
-
-	glBindVertexArray(arrowContext.vertexArray);
-	glDrawElementsInstanced(GL_TRIANGLES, arrowContext.size, GL_UNSIGNED_INT, 0, arrowModelMatrices.size());
-	glBindVertexArray(0);
-
-	glUseProgram(0);
 }
 
 void drawWindOverlay() {
@@ -742,31 +825,6 @@ void updateOverlayMesh() {
 			}
 		}
 	}
-	/*
-	// Interpolacja brakujących danych (jedynie pozioma)
-	for (int j = 0; j <= latSegments; ++j) {
-		for (int i = 0; i <= lonSegments; ++i) {
-			int index = j * (lonSegments + 1) + i;
-			if (vertices[index].windSpeed < 0.0f) {
-				// Prosta interpolacja liniowa z sąsiadów
-				float totalSpeed = 0;
-				int count = 0;
-				if (i > 0 && vertices[index - 1].windSpeed >= 0) { totalSpeed += vertices[index - 1].windSpeed; count++; }
-				if (i < lonSegments && vertices[index + 1].windSpeed >= 0) { totalSpeed += vertices[index + 1].windSpeed; count++; }
-				// Usunięto sprawdzanie sąsiadów w pionie, aby zmniejszyć interpolację
-				// if (j > 0 && vertices[index - (lonSegments + 1)].windSpeed >= 0) { totalSpeed += vertices[index - (lonSegments + 1)].windSpeed; count++; }
-				// if (j < latSegments && vertices[index + (lonSegments + 1)].windSpeed >= 0) { totalSpeed += vertices[index + (lonSegments + 1)].windSpeed; count++; }
-
-				if (count > 0) {
-					vertices[index].windSpeed = totalSpeed / count;
-				}
-				else {
-					vertices[index].windSpeed = 0; // Domyślna wartość, jeśli brak sąsiadów
-				}
-			}
-		}
-	}
-	*/
 
 	// Generowanie indeksów dla trójkątów
 	overlayIndices.clear();
@@ -810,6 +868,7 @@ void updateOverlayMesh() {
 
 void updateWindDataGlobal() {
 	// Aktualizacja globalnej zmiennej windData
+	std::cout << "Ladowanie danych o wietrze" << std::endl;
 	windDataGlobal = GetWindDataGlobal(date);
 
 	// Tworzenie siatki na podstawie danych o wietrze
@@ -837,16 +896,18 @@ void renderScene(GLFWwindow* window)
 	float time = glfwGetTime();
 
 	// Rysowanie planety
-	glUniform3f(glGetUniformLocation(programTex, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glm::mat4 rotatedModel = planetModelMatrix * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0, 1, 0));
-	drawObjectTexture(sphereContext, rotatedModel, texture::earth, texture::earthNormal);
-	// Drawing boundaries
+	if (show_earthmap) drawObjectTexture(sphereContext, rotatedModel, texture::earth, texture::earthNormal);
+	else drawObjectColor(sphereContext, rotatedModel, glm::vec3(0.12f, 0.12f, 0.12f));
+
+	// Rysowanie granic państw
 	glm::mat4 PerspectivexCamera = createPerspectiveMatrix() * createCameraMatrix();
-	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f));//reverse the earth scaling
+	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f)); //reverse the earth scaling
 
 	glUseProgram(program);
 	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, &bordersTransform[0][0]); // set shaders
 	glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_FALSE, &planetModelMatrix[0][0]);
+
 	// set values in shaders
 	glUniform3f(glGetUniformLocation(program, "color"), 0.0f, 0.0f, 2.55f);
 	glUniform3f(glGetUniformLocation(program, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
@@ -1083,19 +1144,6 @@ void init(GLFWwindow* window)
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glEnable(GL_DEPTH_TEST);
 
-	// Podstawowy shader
-	program = shaderLoader.CreateProgram("shaders/shader_5_1.vert", "shaders/shader_5_1.frag");
-	if (program == 0) {
-		std::cerr << "Blad ladowania podstawowych shaderow!" << std::endl;
-		exit(1);
-	}
-
-	// Shader modeli z teksturą
-	programTex = shaderLoader.CreateProgram("shaders/shader_5_1_tex.vert", "shaders/shader_5_1_tex.frag");
-	if (programTex == 0) {
-		std::cerr << "Blad ladowania shaderow tekstur!" << std::endl;
-		exit(1);
-	}
 	/*
 	// Shader atmosfery
 	programAtm = shaderLoader.CreateProgram("shaders/shader_5_1_atm.vert", "shaders/shader_5_1_atm.frag");
@@ -1110,13 +1158,29 @@ void init(GLFWwindow* window)
 		std::cerr << "Blad ladowania shaderow chmur!" << std::endl;
 		exit(1);
 	}
-	*/
+	// Shader strzałek
 	programArrowInstanced = shaderLoader.CreateProgram("shaders/shader_arrow_instanced.vert", "shaders/shader_5_1.frag");
 	if (programArrowInstanced == 0) {
 		std::cerr << "Blad ladowania shaderow instancingu strzalek!" << std::endl;
 		exit(1);
 	}
+	*/
 
+	// Podstawowy shader
+	program = shaderLoader.CreateProgram("shaders/shader_5_1.vert", "shaders/shader_5_1.frag");
+	if (program == 0) {
+		std::cerr << "Blad ladowania podstawowych shaderow!" << std::endl;
+		exit(1);
+	}
+
+	// Shader modeli z teksturą
+	programTex = shaderLoader.CreateProgram("shaders/shader_5_1_tex.vert", "shaders/shader_5_1_tex.frag");
+	if (programTex == 0) {
+		std::cerr << "Blad ladowania shaderow tekstur!" << std::endl;
+		exit(1);
+	}
+
+	// Shader nakładki prędkości wiatru
 	programOverlay = shaderLoader.CreateProgram("shaders/shader_overlay.vert", "shaders/shader_overlay.frag");
 	if (programOverlay == 0) {
 		std::cerr << "Blad ladowania shaderow nakladki!" << std::endl;
@@ -1141,13 +1205,14 @@ void init(GLFWwindow* window)
 	loadModelToContext("./models/sphere2.obj", sphereContext);
 
 	/*
+	// Model strzałki
+	loadModelToContext("./models/arrow.obj", arrowContext);
+	std::cout << "Inicjalizacja zakonczona." << std::endl;
+
 	// Mapa normalnych chmur
 	std::cout << "Ladowanie mapy bump/normal chmur..." << std::endl;
 	texture::cloudsT = Core::LoadTexture("textures/Taris (Clouds Bump 4k).png");
 	if (texture::cloudsT == 0) { std::cerr << "Blad ladowania mapy bump/normal chmur!" << std::endl; }
-
-
-
 
 	// Tekstura chmur
 	std::cout << "Ladowanie tekstury chmur..." << std::endl;
@@ -1157,19 +1222,56 @@ void init(GLFWwindow* window)
 	}
 	*/
 
-	// loading arrow model
-	loadModelToContext("./models/arrow.obj", arrowContext);
 
-	std::cout << "Inicjalizacja zakonczona." << std::endl;
+	// Shader linii wiatru
+	programWindLines = shaderLoader.CreateProgram("shaders/shader_wind_lines.vert", "shaders/shader_wind_lines.frag");
+	if (programWindLines == 0) {
+		std::cerr << "Blad ladowania shaderow linii wiatru!" << std::endl;
+		exit(1);
+	}
 
+	///////// Inicjalizacja linii wiatru /////////
+	// Utwórz geometrię dla prostej linii (prostopadłościan o małym przekroju)
+	std::vector<glm::vec3> lineVertices = {
+		// Przednia ściana
+		{0.0f, -0.5f, -0.5f}, {1.0f, -0.5f, -0.5f}, {1.0f,  0.5f, -0.5f}, {0.0f,  0.5f, -0.5f},
+		// Tylna ściana  
+		{0.0f, -0.5f,  0.5f}, {1.0f, -0.5f,  0.5f}, {1.0f,  0.5f,  0.5f}, {0.0f,  0.5f,  0.5f}
+	};
 
-	// Konfiguracja renderingu instancyjnego dla strzałek
-	glGenBuffers(1, &arrowInstanceVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, arrowInstanceVBO);
-	glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW); // Pusta na początku
+	std::vector<unsigned int> lineIndices = {
+		0, 1, 2, 2, 3, 0,   // Przód
+		4, 5, 6, 6, 7, 4,   // Tył
+		0, 1, 5, 5, 4, 0,   // Dół
+		2, 3, 7, 7, 6, 2,   // Góra
+		0, 3, 7, 7, 4, 0,   // Lewo
+		1, 2, 6, 6, 5, 1    // Prawo
+	};
 
-	glBindVertexArray(arrowContext.vertexArray);
-	glBindBuffer(GL_ARRAY_BUFFER, arrowInstanceVBO);
+	// Utwórz VAO/VBO dla linii
+	glGenVertexArrays(1, &windLinesVAO);
+	glGenBuffers(1, &windLinesVBO);
+	glGenBuffers(1, &windLinesInstanceVBO);
+
+	GLuint lineEBO;
+	glGenBuffers(1, &lineEBO);
+
+	glBindVertexArray(windLinesVAO);
+
+	// Wierzchołki linii
+	glBindBuffer(GL_ARRAY_BUFFER, windLinesVBO);
+	glBufferData(GL_ARRAY_BUFFER, lineVertices.size() * sizeof(glm::vec3), lineVertices.data(), GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+
+	// Indeksy
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, lineEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, lineIndices.size() * sizeof(unsigned int), lineIndices.data(), GL_STATIC_DRAW);
+
+	// Instancjonowane macierze transformacji
+	glBindBuffer(GL_ARRAY_BUFFER, windLinesInstanceVBO);
+	glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
 
 	// Ustawienie wskaźników atrybutów dla macierzy modelu
 	glEnableVertexAttribArray(3);
@@ -1193,8 +1295,9 @@ void init(GLFWwindow* window)
 	glGenBuffers(1, &overlayVBO);
 	glGenBuffers(1, &overlayEBO);
 
-	// Globalne dane o wietrze
-	std::cout << "Ladowanie globalnych danych o wietrze" << std::endl;
+	//////////////////////////////////////////////////////
+
+
 
 	updateWindDataGlobal();
 	updateWindArrowData();
@@ -1207,10 +1310,13 @@ void shutdown(GLFWwindow* window) {
 	/*
 	shaderLoader.DeleteProgram(programAtm);
 	shaderLoader.DeleteProgram(programCloud);
-	*/
 	shaderLoader.DeleteProgram(programArrowInstanced);
+	*/
 	shaderLoader.DeleteProgram(programOverlay);
-
+	shaderLoader.DeleteProgram(programWindLines);
+	glDeleteVertexArrays(1, &windLinesVAO);
+	glDeleteBuffers(1, &windLinesVBO);
+	glDeleteBuffers(1, &windLinesInstanceVBO);
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
@@ -1269,8 +1375,6 @@ void renderLoop(GLFWwindow* window) {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-
-
 		ImVec2 viewport_pos = ImGui::GetMainViewport()->Pos;
 		ImVec2 viewport_size = ImGui::GetMainViewport()->Size;
 
@@ -1288,16 +1392,17 @@ void renderLoop(GLFWwindow* window) {
 		if (!isQuickMenuOpen) {
 			ImGui::Begin("##floating_button", nullptr, button_flags);
 
-			// Zapamietujemy oryginalne style, aby przywrócic po przycisku
+			// Zapamiętujemy oryginalne style, aby przywrócić później
 			ImVec4 old_bg = ImGui::GetStyleColorVec4(ImGuiCol_Button);
 			ImVec4 old_bg_hovered = ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);
 			ImVec4 old_bg_active = ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive);
 			float old_rounding = ImGui::GetStyle().FrameRounding;
 
-			// Ustawiamy styl dla okraglego przycisku
+			// Ustawiamy styl dla przycisku
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.71f, 0.847f, 1.0f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.79f, 0.89f, 1.0f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.50f, 0.60f, 1.0f));
+
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 50.0f);
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 10));
 
@@ -1311,7 +1416,7 @@ void renderLoop(GLFWwindow* window) {
 		////////////////////////////////////////////////////
 
 		///////// Quick Menu /////////
-		std::string dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4);
+		std::string dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4) + " 0:00 UTC";
 
 		ImVec2 window_pos = ImVec2(viewport_pos.x, viewport_pos.y + viewport_size.y - ImGuiHeight);
 
@@ -1320,157 +1425,114 @@ void renderLoop(GLFWwindow* window) {
 		ImGui::SetNextWindowBgAlpha(0.85f);
 		if (isQuickMenuOpen && ImGui::Begin("title###Imguilayout", &isQuickMenuOpen, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar))
 		{
-			/// @separator
-
-			/// @begin Image
 			if (!clock_icon)
 				clock_icon = Core::LoadTexture("img/time-outline.png");
 			ImGui::Image((ImTextureID)(intptr_t)clock_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1)); //StretchPolicy::Scale
-			/// @end Image
 
-			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			//ImGui::AlignTextToFramePadding();
 			ImGui::TextUnformatted(u8"Prędkość animacji");
-			/// @end Text
 
-			/// @begin Slider
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			ImGui::SetNextItemWidth(200);
 			if (ImGui::SliderInt("##animationSpeed", &animationSpeed, 10, 1000, nullptr))
 			{
 				animationSpeed = animationSpeed;
 			};
-			/// @end Slider
 
-			/// @begin Image
 			if (!move_icon)
 				move_icon = Core::LoadTexture("img/move-outline.png");
-			ImGui::Image((ImTextureID)(intptr_t)move_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1)); //StretchPolicy::Scale
-			/// @end Image
+			ImGui::Image((ImTextureID)(intptr_t)move_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1)); 
 
-			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			//ImGui::AlignTextToFramePadding();
 			ImGui::TextUnformatted(u8"Prędkość ruchu kamery");
-			/// @end Text
 
-			/// @begin Slider
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			ImGui::SetNextItemWidth(200);
 			if (ImGui::SliderInt("##cameraSpeed", &cameraSpeed, 10, 1000, nullptr)) {
 				angleSpeed = 0.01f * (cameraSpeed / 100.0f);
 				moveSpeed = 0.01f * (cameraSpeed / 100.0f);
 			}
-			/// @end Slider
 
-			/// @begin Image
 			if (!overlay_icon)
 				overlay_icon = Core::LoadTexture("img/layers-outline.png");
-			ImGui::Image((ImTextureID)(intptr_t)overlay_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1)); //StretchPolicy::Scale
-			/// @end Image
+			ImGui::Image((ImTextureID)(intptr_t)overlay_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1));
 
-			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			//ImGui::AlignTextToFramePadding();
 			ImGui::TextUnformatted(u8"Nakładka prędkości wiatru");
-			/// @end Text
 
-			/// @begin CheckBox
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			ImGui::Checkbox("##show_overlay", &show_overlay);
-			/// @end CheckBox
+			if (!earthmap_icon)
+				earthmap_icon = Core::LoadTexture("img/earth-outline.png");
+			ImGui::Image((ImTextureID)(intptr_t)earthmap_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1));
 
-			/// @begin Image
+			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
+			ImGui::TextUnformatted(u8"Mapa satelitarna");
+
+			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
+			ImGui::Checkbox("##show_earthmap", &show_earthmap);
 			if (!tutorial_icon)
 				tutorial_icon = Core::LoadTexture("img/book-outline.png");
-			ImGui::Image((ImTextureID)(intptr_t)tutorial_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1)); //StretchPolicy::Scale
-			/// @end Image
+			ImGui::Image((ImTextureID)(intptr_t)tutorial_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1));
 
-			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			//ImGui::AlignTextToFramePadding();
 			ImGui::TextUnformatted(u8"Samouczek");
-			/// @end Text
 
-			/// @begin CheckBox
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			ImGui::Checkbox("##show_tutorial", &show_tutorial);
-			/// @end CheckBox
 
-			/// @begin Image
 			if (!date_icon)
 				date_icon = Core::LoadTexture("img/calendar-outline.png");
-			ImGui::Image((ImTextureID)(intptr_t)date_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1)); //StretchPolicy::Scale
-			/// @end Image
+			ImGui::Image((ImTextureID)(intptr_t)date_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1)); 
 
-			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			//ImGui::AlignTextToFramePadding();
 			ImGui::TextUnformatted(u8"Data: ");
-			/// @end Text
 
-			/// @begin Text
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			ImGui::PushStyleColor(ImGuiCol_Text, 0xffffcc00);
-			//ImGui::AlignTextToFramePadding();
 			ImGui::TextUnformatted(dateText.c_str());
 			ImGui::PopStyleColor();
-			/// @end Text
 
-			/// @begin Button
 			if (ImGui::Button(u8"-1 Dzień", ImVec2(100, 0)))
 			{
 				if (daysBefore + 1 >= 0 && daysBefore + 1 <= 7) {
 					daysBefore += 1;
 					date = GetFormattedDate(-daysBefore);
-					dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4);
+					dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4) + " 0:00 UTC";;
 				}
 			}
-			/// @end Button
 
-			/// @begin Button
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			if (ImGui::Button(u8"+1 Dzień", ImVec2(100, 0)))
 			{
 				if (daysBefore - 1 >= 0 && daysBefore - 1 <= 7) {
 					daysBefore -= 1;
 					date = GetFormattedDate(-daysBefore);
-					dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4);
+					dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4) + " 0:00 UTC";;
 				}
 			}
-			/// @end Button
 
-			/// @begin Button
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			if (ImGui::Button(u8"Dzisiaj", ImVec2(100, 0))) {
 				daysBefore = 0;
 				date = GetFormattedDate(-daysBefore);
-				dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4);
+				dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4) + " 0:00 UTC";
 			}
-			/// @end Button
 
-			/// @begin Button
 			if (ImGui::Button(u8"Zmień datę", ImVec2(320, 0)) && !isUpdating)
 			{
 				updateWindDataGlobal();
 				updateWindArrowData();
 				isUpdating = false;
 			}
-			/// @end Button
 
-			/// @begin Button
 			if (ImGui::Button(u8"Zamknij", ImVec2(168, 32)))
 			{
 				isQuickMenuOpen = false;
 			}
-			/// @end Button
 
-			/// @separator
 			ImGui::End();
 		}
-		/// @end TopWindow
-
 		////////////////////////////////////////////////////
 
 		///////// Legenda Mapy /////////
@@ -1484,7 +1546,7 @@ void renderLoop(GLFWwindow* window) {
 		const float padding = 10.0f;
 		ImVec2 legend_pos = ImVec2(viewport_pos.x + viewport_size.x - padding,
 			viewport_pos.y + viewport_size.y - padding);
-		ImVec2 legend_pivot = ImVec2(1.0f, 1.0f); // Ustawienie punktu odniesienia na prawy dolny róg
+		ImVec2 legend_pivot = ImVec2(1.0f, 1.0f);
 		ImGui::SetNextWindowPos(legend_pos, ImGuiCond_Always, legend_pivot);
 		ImGui::SetNextWindowBgAlpha(0.75f);
 		ImGui::SetNextWindowSize(ImVec2(300, 100), ImGuiCond_Always);
@@ -1511,7 +1573,6 @@ void renderLoop(GLFWwindow* window) {
 			ImGui::Text("%s", max_speed_str.c_str());
 		}
 		ImGui::End();
-
 		////////////////////////////////////////////////////
 
 		// Render sceny
