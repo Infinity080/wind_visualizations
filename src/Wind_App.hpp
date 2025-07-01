@@ -320,7 +320,7 @@ void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::v
 	glUniformMatrix4fv(glGetUniformLocation(prog, "transformation"), 1, GL_FALSE, (float*)&transformation);
 	glUniformMatrix4fv(glGetUniformLocation(prog, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
 	glUniform3f(glGetUniformLocation(prog, "color"), color.x, color.y, color.z);
-	glUniform3f(glGetUniformLocation(prog, "lightPos"), -5.f, 3.f, 3.f);
+	glUniform3f(glGetUniformLocation(prog, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 
 	Core::DrawContext(context);
@@ -430,7 +430,7 @@ void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLui
 	glUniform3f(glGetUniformLocation(prog, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glUniformMatrix4fv(glGetUniformLocation(prog, "transformation"), 1, GL_FALSE, (float*)&transformation);
 	glUniformMatrix4fv(glGetUniformLocation(prog, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
-	// glUniform3f(glGetUniformLocation(prog, "lightPos"), -5.f, 3.f, 3.f);
+	glUniform3f(glGetUniformLocation(prog, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 
 	Core::SetActiveTexture(colorTextureID, "colorTexture", prog, 0);
@@ -454,7 +454,7 @@ void drawObjectAtmosphere(Core::RenderContext& context, glm::mat4 modelMatrix) {
 	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
 	glUniformMatrix4fv(glGetUniformLocation(prog, "transformation"), 1, GL_FALSE, (float*)&transformation);
 	glUniformMatrix4fv(glGetUniformLocation(prog, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
-	glUniform3f(glGetUniformLocation(prog, "lightPos"), -5.f, 3.f, 3.f);
+	glUniform3f(glGetUniformLocation(prog, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 
 	// Uniformy dla atmosfery
@@ -485,7 +485,7 @@ void drawObjectClouds(Core::RenderContext& context, glm::mat4 modelMatrix, GLuin
 
 	glUniformMatrix4fv(glGetUniformLocation(prog, "transformation"), 1, GL_FALSE, (float*)&transformation);
 	glUniformMatrix4fv(glGetUniformLocation(prog, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
-	glUniform3f(glGetUniformLocation(prog, "lightPos"), -5.f, 3.f, 3.f);
+	glUniform3f(glGetUniformLocation(prog, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glUniform1f(glGetUniformLocation(prog, "shininess"), 30.0f);
 
