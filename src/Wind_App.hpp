@@ -97,6 +97,7 @@ Core::Shader_Loader shaderLoader;
 Core::RenderContext sphereContext;
 Core::RenderContext arrowContext;
 Core::RenderContext skyboxContext;
+Core::RenderContext atmosphereContext;
 
 GLuint arrowInstanceVBO; // VBO dla danych instancji strzałek (macierze modelu)
 std::vector<glm::mat4> arrowModelMatrices; // Wektor macierzy modelu dla każdej strzałki
@@ -452,9 +453,11 @@ void drawObjectAtmosphere(Core::RenderContext& context, glm::mat4 modelMatrix) {
 	glDepthMask(GL_FALSE);      // Nie zapisuj do bufora głębokosci, aby nie zasłonić planety
 
 	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
-	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
+	glm::mat4 scaledModelMatrix = modelMatrix * glm::scale(glm::mat4(1.0f), glm::vec3(1.025f));
+	glm::mat4 transformation = viewProjectionMatrix * scaledModelMatrix;
+
 	glUniformMatrix4fv(glGetUniformLocation(prog, "transformation"), 1, GL_FALSE, (float*)&transformation);
-	glUniformMatrix4fv(glGetUniformLocation(prog, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
+	glUniformMatrix4fv(glGetUniformLocation(prog, "modelMatrix"), 1, GL_FALSE, (float*)&scaledModelMatrix);
 	glUniform3f(glGetUniformLocation(prog, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 
@@ -935,6 +938,10 @@ void renderScene(GLFWwindow* window)
 	if (show_earthmap) drawObjectTexture(sphereContext, rotatedModel, texture::earth, texture::earthNormal);
 	else drawObjectColor(sphereContext, rotatedModel, glm::vec3(0.12f, 0.12f, 0.12f));
 
+	// Rysowanie atmosfery
+	glm::mat4 atmosphereModelMatrix = rotatedModel * glm::scale(glm::vec3(1.009f));
+	drawObjectAtmosphere(atmosphereContext, atmosphereModelMatrix);
+
 	// Rysowanie granic państw
 	glm::mat4 PerspectivexCamera = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 bordersTransform = PerspectivexCamera * planetModelMatrix * glm::scale(glm::vec3(110.0f)); //reverse the earth scaling
@@ -1081,6 +1088,8 @@ void init(GLFWwindow* window)
 	// loading borders
 	loadCountryBoundaries("data/ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp");
 
+	loadModelToContext("models/sphere2.obj", atmosphereContext);
+
 	std::vector<glm::vec3> vertices;
 	countryFirstVert.clear();
 	countryVertCount.clear();
@@ -1182,15 +1191,14 @@ void init(GLFWwindow* window)
 
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glEnable(GL_DEPTH_TEST);
-
-	/*
+	
 	// Shader atmosfery
 	programAtm = shaderLoader.CreateProgram("shaders/shader_5_1_atm.vert", "shaders/shader_5_1_atm.frag");
 	if (programAtm == 0) {
 		std::cerr << "Blad ladowania shaderow atmosfery!" << std::endl;
 		exit(1);
 	}
-
+	/*
 	// Shader chmur
 	programCloud = shaderLoader.CreateProgram("shaders/shader_5_1_cloud.vert", "shaders/shader_5_1_cloud.frag");
 	if (programCloud == 0) {
