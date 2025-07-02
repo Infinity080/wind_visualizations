@@ -12,12 +12,12 @@
 #include "Render_Utils.h"
 #include "Texture.h"
 
-#include "Box.cpp"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <string>
 #include "shapefil.h"
+#include "SOIL/SOIL.h"
 
 #include "Get_Wind_Data.h"
 #include "imgui_internal.h"
@@ -30,9 +30,7 @@
 // Inicjalizacja zmiennych dla tekstur
 namespace texture {
 	GLuint earth;
-	GLuint clouds;
 	GLuint earthNormal;
-	GLuint cloudsT;
 	GLuint skybox;
 }
 
@@ -61,6 +59,7 @@ struct Country {
 std::vector<Country> countries;
 
 int selectedCountryId = -1;
+glm::vec3 borderColor = glm::vec3(0.0f, 0.0f, 2.55f);
 
 Grid grid;
 
@@ -74,6 +73,9 @@ struct WindLineData {
 	float length;           // Długość linii
 };
 
+GLuint selectedCountryVAO = 0, selectedCountryVBO = 0;
+std::vector<GLuint> selectedCountryFirstVert, selectedCountryVertCount;
+
 GLuint windLinesVAO, windLinesVBO, windLinesInstanceVBO;
 std::vector<WindLineData> windLineData;
 std::vector<glm::mat4> windLineMatrices;
@@ -86,11 +88,11 @@ const float LINE_THICKNESS = 0.25f; // Grubość linii wiatru
 GLuint program; // Podstawowy program do rysowania kolorem
 GLuint programTex; // Program do rysowania z teksturą
 GLuint programAtm; // Program do rysowania atmosfery
-GLuint programCloud; // Program do rysowania chmur
 GLuint programArrowInstanced; // Program do rysowania strzałek za pomocą instancingu
 GLuint programOverlay; // Program do rysowania nakładki prędkości wiatru
 GLuint programWindLines; // Program do rysowania linii wiatru
 GLuint programSkybox; // Program do rysowania skyboxa
+GLuint programPointsInstanced; // Program do rysowania instancjonowanych punktów
 
 Core::Shader_Loader shaderLoader;
 
@@ -117,8 +119,11 @@ double lastX = 0.0;
 double lastY = 0.0;
 float mouseSensitivity = 0.005f;
 
+GLuint pointsVAO = 0, pointsVBO = 0, pointsInstanceVBO = 0;
 GLuint bordersVAO = 0, bordersVBO = 0;
 std::vector<GLuint> countryFirstVert, countryVertCount;
+std::vector<glm::vec3> pointPositions;
+std::vector<glm::vec3> pointColors;
 
 float planetRadius = 3.0f;
 float modelRadius = 110.0f;
@@ -164,6 +169,7 @@ GLuint overlayVAO, overlayVBO, overlayEBO;
 std::vector<unsigned int> overlayIndices;
 float maxWindSpeed = 32.6f; // Maksymalna prędkość wiatru do normalizacji kolorów
 std::string max_speed_str = std::to_string(static_cast<int>(maxWindSpeed));
+
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
 	float lon = glm::radians(lonInput);
@@ -328,52 +334,6 @@ void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::v
 	glUseProgram(0);
 }
 
-void drawPoint(float lat, float lon, glm::vec3 color) {
-	glm::vec3 dir = latLonToXYZ(lat, lon);
-
-	glm::vec3 pos = dir * modelRadius;
-
-	glm::mat4 model = planetModelMatrix
-		* glm::translate(glm::mat4(1.0f), pos) // przesuwamy na powierzchnię
-		* glm::scale(glm::mat4(1.0f), glm::vec3(pointRadiusModel)); // zmniejszamy
-
-	drawObjectColor(sphereContext, model, color);
-}
-
-void drawPoint2D(float lat, float lon, glm::vec3 color) {
-	// Obliczenie pozycji 3D na powierzchni kuli
-	glm::vec3 worldPos = latLonToXYZ(lat, lon) * modelRadius;
-
-	// Przygotowanie VAO i VBO dla punktu
-	GLuint pointVAO, pointVBO;
-	glGenVertexArrays(1, &pointVAO);
-	glGenBuffers(1, &pointVBO);
-
-	glBindVertexArray(pointVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, pointVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3), &worldPos, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-
-	// Użycie shadera i ustawienie uniformów
-	glUseProgram(program);
-	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
-	glm::mat4 transformation = viewProjectionMatrix * planetModelMatrix;
-
-	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, (float*)&transformation);
-	glUniform3f(glGetUniformLocation(program, "color"), color.x, color.y, color.z);
-
-	// Ustawienie rozmiaru punktu i jego rysowanie
-	glPointSize(5.0f);
-	glDrawArrays(GL_POINTS, 0, 1);
-
-	// Czyszczenie
-	glBindVertexArray(0);
-	glDeleteVertexArrays(1, &pointVAO);
-	glDeleteBuffers(1, &pointVBO);
-	glUseProgram(0);
-}
 
 void drawSkybox() {
 	// Wyłączenie zapisu głębokości i włączenie tylko odczytu
@@ -471,36 +431,6 @@ void drawObjectAtmosphere(Core::RenderContext& context, glm::mat4 modelMatrix) {
 	glUseProgram(0);
 }
 
-// Funkcja do rysowania chmur
-void drawObjectClouds(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint cloudColorTexture) {
-	GLuint prog = programCloud;
-	glUseProgram(prog);
-
-	// Włączenie standardowego alpha blendingu
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glDepthMask(GL_FALSE);
-
-	glm::mat4 viewProjection = createPerspectiveMatrix() * createCameraMatrix();
-	glm::mat4 transformation = viewProjection * modelMatrix;
-
-	glUniformMatrix4fv(glGetUniformLocation(prog, "transformation"), 1, GL_FALSE, (float*)&transformation);
-	glUniformMatrix4fv(glGetUniformLocation(prog, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
-	glUniform3f(glGetUniformLocation(prog, "lightPos"), cameraPos.x, cameraPos.y, cameraPos.z);
-	glUniform3f(glGetUniformLocation(prog, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
-	glUniform1f(glGetUniformLocation(prog, "shininess"), 30.0f);
-
-	Core::SetActiveTexture(cloudColorTexture, "cloudColor", prog, 0);
-
-	Core::DrawContext(context);
-
-	// Wyłączenie blendingu i przywrócenie zapisu głębokosci
-	glDepthMask(GL_TRUE);
-	glDisable(GL_BLEND);
-
-	glUseProgram(0);
-}
-
 // Funkcja do aktualizacji danych o strzałkach wiatru dla renderingu instancyjnego
 
 void updateWindArrowData() {
@@ -584,7 +514,7 @@ void updateWindArrowData() {
 	}
 }
 
-// Poprawiona funkcja do rysowania animowanych linii wiatru
+// Funkcja do rysowania animowanych linii wiatru
 void drawWindArrows() {
 	if (windLineMatrices.empty()) {
 		std::cout << "Brak danych linii wiatru do narysowania" << std::endl;
@@ -788,19 +718,6 @@ Grid createGrid() {
 	return grid;
 }
 
-// Funkcja do rysowania punktów (środków) siatki
-void drawGridDots() {
-
-	// Kolor punktów
-	glm::vec3 pointColor(1.0f, 1.0f, 1.0f);
-
-	// Rysowanie punktów
-	for (size_t i = 0; i < grid.numTiles; ++i) {
-		drawPoint2D(grid.latitudes[i], grid.longitudes[i], pointColor);
-	}
-
-}
-
 void updateOverlayMesh() {
 	if (grid.numTiles == 0) return;
 
@@ -953,34 +870,23 @@ void renderScene(GLFWwindow* window)
 	int counter = 0;
 	for (const auto& country : countries) {
 		for (size_t i = 0; i < country.boundaries.size(); ++i) {
-			glm::vec3 color = (country.id == selectedCountryId)
-				? glm::vec3(1.0f, 0.2f, 0.2f)
-				: glm::vec3(0.0f, 0.0f, 2.55f);
-
-			glUniform3f(glGetUniformLocation(program, "color"), color.r, color.g, color.b);
+			if (country.id == selectedCountryId) {
+				glLineWidth(10.0f);
+			}
+			glUniform3f(glGetUniformLocation(program, "color"), borderColor.r, borderColor.g, borderColor.b);
 			glDrawArrays(GL_LINE_LOOP, countryFirstVert[counter], countryVertCount[counter]);
 			counter++;
+			glLineWidth(2.0f);
 		}
 	}
 	glBindVertexArray(0);
 	glUseProgram(0);
 
-	// granice zaznaczonego kraju
-	if (selectedCountryId >= 0) {
-		const Country& selected = countries[selectedCountryId];
-		for (const auto& boundary : selected.boundaries) {
-			for (const auto& v : boundary) {
-				float lat = glm::degrees(asin(v.y));
-				float lon = glm::degrees(atan2(-v.z, v.x));
-				drawPoint2D(lat, lon, glm::vec3(1.0f, 0.0f, 0.0f));
-			}
-		}
-	}
 	if (show_tutorial) drawWindArrows();
 	if (show_overlay) drawWindOverlay();
 	if (selectedCountryId >= 0) {
 		CountryWindInfo info = calculateCountryWindInfo(selectedCountryId);
-		drawArrow(info.avgLat, info.avgLon, info.avgAngle, glm::vec3(1.0f, 0.0f, 0.0f));
+		drawArrow(info.avgLat, info.avgLon, info.avgAngle, glm::vec3(1.0f, 1.0f, 1.0f));
 	}
 }
 ////////////////////////////////////////////////////
@@ -1078,6 +984,20 @@ CountryWindInfo calculateCountryWindInfo(int countryId) {
 ///////// Funkcja inicjalizująca /////////
 void init(GLFWwindow* window)
 {
+	int width, height, channels;
+	unsigned char* image = SOIL_load_image("img/app-icon.png", &width, &height, &channels, SOIL_LOAD_RGBA);
+
+	if (image) {
+		GLFWimage icon;
+		icon.width = width;
+		icon.height = height;
+		icon.pixels = image;
+
+		glfwSetWindowIcon(window, 1, &icon);
+
+		SOIL_free_image_data(image);
+	}
+
 	// loading borders
 	loadCountryBoundaries("data/ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp");
 
@@ -1190,15 +1110,8 @@ void init(GLFWwindow* window)
 		std::cerr << "Blad ladowania shaderow atmosfery!" << std::endl;
 		exit(1);
 	}
-
-	// Shader chmur
-	programCloud = shaderLoader.CreateProgram("shaders/shader_5_1_cloud.vert", "shaders/shader_5_1_cloud.frag");
-	if (programCloud == 0) {
-		std::cerr << "Blad ladowania shaderow chmur!" << std::endl;
-		exit(1);
-	}
-	// Shader strzałek
 	*/
+	// Shader strzałek
 	programArrowInstanced = shaderLoader.CreateProgram("shaders/shader_arrow_instanced.vert", "shaders/shader_5_1.frag");
 	if (programArrowInstanced == 0) {
 		std::cerr << "Blad ladowania shaderow instancingu strzalek!" << std::endl;
@@ -1235,7 +1148,6 @@ void init(GLFWwindow* window)
 
 	// Tekstura Ziemi
 	std::cout << "Ladowanie tekstury Ziemi..." << std::endl;
-	//texture::earth = Core::LoadTiledTexture("textures/tiles/tile_%d_%d.png", 22, 11, 1024, 1024);
 	texture::earth = Core::LoadTexture("textures/earth_smaller.jpg");
 	if (texture::earth == 0) {
 		std::cerr << "Blad ladowania tekstury Ziemi!" << std::endl;
@@ -1266,20 +1178,6 @@ void init(GLFWwindow* window)
 	// Model strzałki
 	loadModelToContext("./models/arrow.obj", arrowContext);
 	std::cout << "Inicjalizacja strzałki zakonczona." << std::endl;
-	/*
-	// Mapa normalnych chmur
-	std::cout << "Ladowanie mapy bump/normal chmur..." << std::endl;
-	texture::cloudsT = Core::LoadTexture("textures/Taris (Clouds Bump 4k).png");
-	if (texture::cloudsT == 0) { std::cerr << "Blad ladowania mapy bump/normal chmur!" << std::endl; }
-
-	// Tekstura chmur
-	std::cout << "Ladowanie tekstury chmur..." << std::endl;
-	texture::clouds = Core::LoadTexture("textures/Taris (Clouds 4k).png");
-	if (texture::clouds == 0) {
-		std::cerr << "Blad ladowania tekstury Chmur!" << std::endl;
-	}
-	*/
-
 
 	// Shader linii wiatru
 	programWindLines = shaderLoader.CreateProgram("shaders/shader_wind_lines.vert", "shaders/shader_wind_lines.frag");
@@ -1288,22 +1186,20 @@ void init(GLFWwindow* window)
 		exit(1);
 	}
 
-	///////// Inicjalizacja linii wiatru /////////
-	// Utwórz geometrię dla prostej linii (prostopadłościan o małym przekroju)
+	///////// Inicjalizacja linii wiatru i nakładki /////////
+
 	std::vector<glm::vec3> lineVertices = {
-		// Przednia ściana
 		{0.0f, -0.5f, -0.5f}, {1.0f, -0.5f, -0.5f}, {1.0f,  0.5f, -0.5f}, {0.0f,  0.5f, -0.5f},
-		// Tylna ściana  
 		{0.0f, -0.5f,  0.5f}, {1.0f, -0.5f,  0.5f}, {1.0f,  0.5f,  0.5f}, {0.0f,  0.5f,  0.5f}
 	};
 
 	std::vector<unsigned int> lineIndices = {
-		0, 1, 2, 2, 3, 0,   // Przód
-		4, 5, 6, 6, 7, 4,   // Tył
-		0, 1, 5, 5, 4, 0,   // Dół
-		2, 3, 7, 7, 6, 2,   // Góra
-		0, 3, 7, 7, 4, 0,   // Lewo
-		1, 2, 6, 6, 5, 1    // Prawo
+		0, 1, 2, 2, 3, 0,
+		4, 5, 6, 6, 7, 4,
+		0, 1, 5, 5, 4, 0,
+		2, 3, 7, 7, 6, 2,
+		0, 3, 7, 7, 4, 0, 
+		1, 2, 6, 6, 5, 1
 	};
 
 	// Utwórz VAO/VBO dla linii
@@ -1367,7 +1263,6 @@ void shutdown(GLFWwindow* window) {
 	shaderLoader.DeleteProgram(programTex);
 	/*
 	shaderLoader.DeleteProgram(programAtm);
-	shaderLoader.DeleteProgram(programCloud);
 	shaderLoader.DeleteProgram(programArrowInstanced);
 	*/
 	shaderLoader.DeleteProgram(programOverlay);
@@ -1381,9 +1276,7 @@ void shutdown(GLFWwindow* window) {
 	ImGui::DestroyContext();
 
 	glDeleteTextures(1, &texture::earth);
-	// glDeleteTextures(1, &texture::clouds);
 	glDeleteTextures(1, &texture::earthNormal);
-	// glDeleteTextures(1, &texture::cloudsT);
 	glDeleteTextures(1, &texture::skybox);
 	glDeleteTextures(1, &clock_icon);
 	glDeleteTextures(1, &move_icon);
@@ -1611,7 +1504,7 @@ void renderLoop(GLFWwindow* window) {
 		ImGui::SetNextWindowBgAlpha(0.75f);
 		ImGui::SetNextWindowSize(ImVec2(300, 100), ImGuiCond_Always);
 		if (ImGui::Begin("Legenda", nullptr, legend_flags)) {
-			ImGui::Text(u8"Predkość wiatru (m/s)");
+			ImGui::Text(u8"Prędkość wiatru (m/s)");
 			ImGui::Separator();
 
 			float w = 284.0f;

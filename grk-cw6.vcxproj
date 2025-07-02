@@ -21,7 +21,6 @@
     <ClCompile Include="imgui\imgui_impl_opengl3.cpp" />
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
-    <ClCompile Include="src\Box.cpp" />
     <ClCompile Include="src\Camera.cpp" />
     <ClCompile Include="src\Get_Wind_Data.cpp" />
     <ClCompile Include="src\main.cpp" />
@@ -34,7 +33,6 @@
     <ClCompile Include="src\Texture.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="cpp\src\ex_6_1.hpp" />
     <ClInclude Include="dependencies\shapefil\shapefil.h" />
     <ClInclude Include="dependencies\shapefil\shapefil_private.h" />
     <ClInclude Include="imgui\imconfig.h" />
@@ -65,8 +63,6 @@
     <None Include="shaders\shader_5_1.vert" />
     <None Include="shaders\shader_5_1_atm.frag" />
     <None Include="shaders\shader_5_1_atm.vert" />
-    <None Include="shaders\shader_5_1_cloud.frag" />
-    <None Include="shaders\shader_5_1_cloud.vert" />
     <None Include="shaders\shader_5_1_pbr.frag" />
     <None Include="shaders\shader_5_1_pbr.vert" />
     <None Include="shaders\shader_5_1_tex.frag" />

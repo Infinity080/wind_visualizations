@@ -33,9 +33,6 @@
     <ClCompile Include="src\Shader_Loader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Box.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\Camera.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -164,9 +161,6 @@
     <ClInclude Include="src\Get_Wind_Data.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="cpp\src\ex_6_1.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader_5_1.frag">
@@ -185,12 +179,6 @@
       <Filter>Shader Files</Filter>
     </None>
     <None Include="shaders\shader_5_1_atm.frag">
-      <Filter>Shader Files</Filter>
-    </None>
-    <None Include="shaders\shader_5_1_cloud.frag">
-      <Filter>Shader Files</Filter>
-    </None>
-    <None Include="shaders\shader_5_1_cloud.vert">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="shaders\shader_5_1_pbr.frag">
