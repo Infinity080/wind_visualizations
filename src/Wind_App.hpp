@@ -129,13 +129,14 @@ glm::mat4 planetModelMatrix = glm::scale(glm::mat4(1.0f), planetScale);
 
 float pointRadiusModel = pointRadius / planetScale.x;
 
-float arrowSize = 0.005f;
+float arrowSize = 0.02f;
 float arrowScaleModel = arrowSize * modelRadius / planetRadius;
 
 GLFWwindow* windowGlobal;
 
 std::string windDataGlobal; // Globalne dane o wietrze
 
+CountryWindInfo calculateCountryWindInfo(int countryId);
 
 // Zmienne QuickMenu
 int cameraSpeed = 100;
@@ -401,7 +402,7 @@ void drawSkybox() {
 	glUseProgram(0);
 }
 
-/*
+
 void drawArrow(float latInput, float lonInput, float rotation, glm::vec3 color) {
 	glm::vec3 normal = glm::normalize(latLonToXYZ(latInput, lonInput)); // wektor normalny do planety
 	glm::vec3 point = normal * (modelRadius + 1.0f); // punkt strzałki
@@ -419,7 +420,7 @@ void drawArrow(float latInput, float lonInput, float rotation, glm::vec3 color) 
 
 	drawObjectColor(arrowContext, modelMatrix, color);
 }
-*/
+
 
 // Funkcja do rysowania obiektu z teksturą
 void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint colorTextureID, GLuint normalMapTextureID) {
@@ -977,6 +978,10 @@ void renderScene(GLFWwindow* window)
 	}
 	if (show_tutorial) drawWindArrows();
 	if (show_overlay) drawWindOverlay();
+	if (selectedCountryId >= 0) {
+		CountryWindInfo info = calculateCountryWindInfo(selectedCountryId);
+		drawArrow(info.avgLat, info.avgLon, info.avgAngle, glm::vec3(1.0f, 0.0f, 0.0f));
+	}
 }
 ////////////////////////////////////////////////////
 
@@ -1193,12 +1198,12 @@ void init(GLFWwindow* window)
 		exit(1);
 	}
 	// Shader strzałek
+	*/
 	programArrowInstanced = shaderLoader.CreateProgram("shaders/shader_arrow_instanced.vert", "shaders/shader_5_1.frag");
 	if (programArrowInstanced == 0) {
 		std::cerr << "Blad ladowania shaderow instancingu strzalek!" << std::endl;
 		exit(1);
 	}
-	*/
 
 	// Podstawowy shader
 	program = shaderLoader.CreateProgram("shaders/shader_5_1.vert", "shaders/shader_5_1.frag");
@@ -1239,7 +1244,7 @@ void init(GLFWwindow* window)
 
 	// Mapa normalnych ziemi
 	std::cout << "Ladowanie mapy normalnych Ziemi..." << std::endl;
-	texture::earthNormal = Core::LoadTexture("textures/earth_bump.jpg");
+	texture::earthNormal = Core::LoadTexture("textures/8k_earth_normal_map.jpg");
 	if (texture::earthNormal == 0) { std::cerr << "Blad ladowania mapy normalnych Ziemi!" << std::endl; }
 
 	// Tekstura skyboxa
@@ -1257,11 +1262,11 @@ void init(GLFWwindow* window)
 	std::cout << "Ladowanie modelu kuli..." << std::endl;
 	loadModelToContext("./models/sphere2.obj", sphereContext);
 
-	/*
+	
 	// Model strzałki
 	loadModelToContext("./models/arrow.obj", arrowContext);
-	std::cout << "Inicjalizacja zakonczona." << std::endl;
-
+	std::cout << "Inicjalizacja strzałki zakonczona." << std::endl;
+	/*
 	// Mapa normalnych chmur
 	std::cout << "Ladowanie mapy bump/normal chmur..." << std::endl;
 	texture::cloudsT = Core::LoadTexture("textures/Taris (Clouds Bump 4k).png");
