@@ -88,7 +88,6 @@ const float LINE_THICKNESS = 0.25f; // Grubość linii wiatru
 GLuint program; // Podstawowy program do rysowania kolorem
 GLuint programTex; // Program do rysowania z teksturą
 GLuint programAtm; // Program do rysowania atmosfery
-GLuint programArrowInstanced; // Program do rysowania strzałek za pomocą instancingu
 GLuint programOverlay; // Program do rysowania nakładki prędkości wiatru
 GLuint programWindLines; // Program do rysowania linii wiatru
 GLuint programSkybox; // Program do rysowania skyboxa
@@ -128,17 +127,13 @@ std::vector<glm::vec3> pointColors;
 
 float planetRadius = 3.0f;
 float modelRadius = 110.0f;
-float pointRadius = 0.00015f;
 
 glm::vec3 planetScale = glm::vec3(planetRadius / modelRadius);
 glm::mat4 planetModelMatrix = glm::scale(glm::mat4(1.0f), planetScale);
 
-float pointRadiusModel = pointRadius / planetScale.x;
 
 float arrowSize = 0.02f;
 float arrowScaleModel = arrowSize * modelRadius / planetRadius;
-
-GLFWwindow* windowGlobal;
 
 std::string windDataGlobal; // Globalne dane o wietrze
 
@@ -159,8 +154,9 @@ GLuint overlay_icon = 0;
 GLuint earthmap_icon = 0;
 GLuint tutorial_icon = 0;
 GLuint date_icon = 0;
+GLuint windarrows_icon = 0;
 float ImGuiWidth = 460.0f;
-float ImGuiHeight = 350.0f;
+float ImGuiHeight = 380.0f;
 
 std::string date = GetFormattedDate(-daysBefore); // Dzisiejsza data
 
@@ -171,6 +167,11 @@ GLuint overlayVAO, overlayVBO, overlayEBO;
 std::vector<unsigned int> overlayIndices;
 float maxWindSpeed = 32.6f; // Maksymalna prędkość wiatru do normalizacji kolorów
 std::string max_speed_str = std::to_string(static_cast<int>(maxWindSpeed));
+
+// Zmienne dla tutorialu
+static bool tutorial_popup_open = false;
+static int tutorial_step = -1;
+static bool tutorial_steps_initialized[4] = { false, false, false, false };
 
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
@@ -1119,13 +1120,6 @@ void init(GLFWwindow* window)
 		std::cerr << "Blad ladowania shaderow atmosfery!" << std::endl;
 		exit(1);
 	}
-	
-	// Shader strzałek
-	programArrowInstanced = shaderLoader.CreateProgram("shaders/shader_arrow_instanced.vert", "shaders/shader_5_1.frag");
-	if (programArrowInstanced == 0) {
-		std::cerr << "Blad ladowania shaderow instancingu strzalek!" << std::endl;
-		exit(1);
-	}
 
 	// Podstawowy shader
 	program = shaderLoader.CreateProgram("shaders/shader_5_1.vert", "shaders/shader_5_1.frag");
@@ -1186,7 +1180,7 @@ void init(GLFWwindow* window)
 	
 	// Model strzałki
 	loadModelToContext("./models/arrow.obj", arrowContext);
-	std::cout << "Inicjalizacja strzałki zakonczona." << std::endl;
+	std::cout << "Inicjalizacja zakonczona." << std::endl;
 
 	// Shader linii wiatru
 	programWindLines = shaderLoader.CreateProgram("shaders/shader_wind_lines.vert", "shaders/shader_wind_lines.frag");
@@ -1270,10 +1264,7 @@ void init(GLFWwindow* window)
 void shutdown(GLFWwindow* window) {
 	shaderLoader.DeleteProgram(program);
 	shaderLoader.DeleteProgram(programTex);
-	/*
 	shaderLoader.DeleteProgram(programAtm);
-	shaderLoader.DeleteProgram(programArrowInstanced);
-	*/
 	shaderLoader.DeleteProgram(programOverlay);
 	shaderLoader.DeleteProgram(programWindLines);
 	shaderLoader.DeleteProgram(programSkybox);
@@ -1292,6 +1283,7 @@ void shutdown(GLFWwindow* window) {
 	glDeleteTextures(1, &overlay_icon);
 	glDeleteTextures(1, &tutorial_icon);
 	glDeleteTextures(1, &date_icon);
+	glDeleteTextures(1, &windarrows_icon);
 
 	glDeleteVertexArrays(1, &overlayVAO);
 	glDeleteBuffers(1, &overlayVBO);
@@ -1329,7 +1321,6 @@ void processInput(GLFWwindow* window)
 void renderLoop(GLFWwindow* window) {
 	while (!glfwWindowShouldClose(window))
 	{
-		windowGlobal = window;
 		processInput(window);
 
 		// Uruchomienie ImGui
@@ -1442,15 +1433,12 @@ void renderLoop(GLFWwindow* window) {
 
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			ImGui::Checkbox("##show_tutorial", &show_tutorial);
-
-			/*
+			
 			if (!windarrows_icon)
-				windarrows_icon = Core::LoadTexture("img/compass-outline.png");
+				windarrows_icon = Core::LoadTexture("img/wind-outline.png");
 			ImGui::Image((ImTextureID)(intptr_t)windarrows_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1));
-			*/
-			ImGui::Spacing();
-			ImGui::SameLine(0, ImGui::GetStyle().ItemSpacing.x);
-			ImGui::TextUnformatted(u8"Strzałki wiatru");
+			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
+			ImGui::TextUnformatted(u8"Linie wiatru");
 
 			ImGui::SameLine(0, ImGui::GetStyle().ItemSpacing.x);
 			ImGui::Checkbox("##show_wind_arrows", &show_wind_arrows);
@@ -1468,7 +1456,7 @@ void renderLoop(GLFWwindow* window) {
 			ImGui::TextUnformatted(dateText.c_str());
 			ImGui::PopStyleColor();
 
-			if (ImGui::Button(u8"-1 Dzień", ImVec2(100, 0)))
+			if (ImGui::Button(u8"-1 Dzień", ImVec2(100, 40)))
 			{
 				if (daysBefore + 1 >= 0 && daysBefore + 1 <= 7) {
 					daysBefore += 1;
@@ -1478,7 +1466,7 @@ void renderLoop(GLFWwindow* window) {
 			}
 
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			if (ImGui::Button(u8"+1 Dzień", ImVec2(100, 0)))
+			if (ImGui::Button(u8"+1 Dzień", ImVec2(100, 40)))
 			{
 				if (daysBefore - 1 >= 0 && daysBefore - 1 <= 7) {
 					daysBefore -= 1;
@@ -1488,20 +1476,22 @@ void renderLoop(GLFWwindow* window) {
 			}
 
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
-			if (ImGui::Button(u8"Dzisiaj", ImVec2(100, 0))) {
+			if (ImGui::Button(u8"Dzisiaj", ImVec2(100, 40))) {
 				daysBefore = 0;
 				date = GetFormattedDate(-daysBefore);
 				dateText = date.substr(6, 2) + "." + date.substr(4, 2) + "." + date.substr(0, 4) + " 0:00 UTC";
 			}
 
-			if (ImGui::Button(u8"Zmień datę", ImVec2(320, 0)) && !isUpdating)
+			if (ImGui::Button(u8"Zmień datę", ImVec2(320, 40)) && !isUpdating)
 			{
+				show_tutorial = false;
 				updateWindDataGlobal();
 				updateWindArrowData();
 				isUpdating = false;
+				
 			}
 
-			if (ImGui::Button(u8"Zamknij", ImVec2(168, 32)))
+			if (ImGui::Button(u8"Zamknij", ImVec2(168, 40)))
 			{
 				isQuickMenuOpen = false;
 			}
@@ -1554,8 +1544,6 @@ void renderLoop(GLFWwindow* window) {
 		renderScene(window);
 
 		// Samouczek
-		static bool tutorial_popup_open = false;
-		static int tutorial_step = -1;
 		if (show_tutorial && !tutorial_popup_open) {
 			ImGui::OpenPopup("Tutorial");
 			tutorial_popup_open = true;
@@ -1574,7 +1562,7 @@ void renderLoop(GLFWwindow* window) {
 				ImGui::Spacing();
 				ImGui::TextWrapped(u8"Podczas samouczka zobaczysz prezentowane efekty w tle.");
 				ImGui::Spacing();
-				if (ImGui::Button(u8"Start", ImVec2(120, 0))) {
+				if (ImGui::Button(u8"Start", ImVec2(120, 40))) {
 					show_overlay = false;
 					show_wind_arrows = false;
 					show_earthmap = false;
@@ -1595,34 +1583,106 @@ void renderLoop(GLFWwindow* window) {
 		ImGui::SetNextWindowBgAlpha(0.85f);
 
 		if (ImGui::Begin("TutorialStep", nullptr, flags)) {
-			if (tutorial_step == 0) {
-				show_earthmap = true;
+			if (tutorial_step == 0 && show_tutorial) {
+				tutorial_steps_initialized[1] = false;
+				tutorial_steps_initialized[2] = false;
+				tutorial_steps_initialized[3] = false;
+					if (!tutorial_steps_initialized[0]) {
+					show_earthmap = true;
+					show_overlay = false;
+					show_wind_arrows = false;
+					isQuickMenuOpen = true;
+					tutorial_steps_initialized[0] = true;
+				}
 				ImGui::TextWrapped(u8"Krok 1: Mapa satelitarna");
 				ImGui::BulletText(u8"W menu możesz włączać i wyłączać teksturę planety.");
-				if (ImGui::Button(u8"Dalej")) {
+				if (ImGui::Button(u8"Dalej", ImVec2(100, 36))) {
 					tutorial_step = 1;
 				}
 			}
-			else if (tutorial_step == 1) {
-				show_overlay = true;
+			else if (tutorial_step == 1 && show_tutorial) {
+				tutorial_steps_initialized[0] = false;
+				tutorial_steps_initialized[2] = false;
+				tutorial_steps_initialized[3] = false;
+				if (!tutorial_steps_initialized[1]) {
+					show_earthmap = true;
+					show_overlay = true;
+					show_wind_arrows = false;
+					isQuickMenuOpen = true;
+					tutorial_steps_initialized[1] = true;
+				}
 				ImGui::TextWrapped(u8"Krok 2: Nakładka prędkości wiatru");
 				ImGui::BulletText(u8"W menu możesz włączać i wyłączać nakładkę wiatru.");
-				ImGui::BulletText(u8"Mapuje ona prędkość wiatru kolorystycznie, według legendy w prawym dolnym rogu aplikacji");
-				if (ImGui::Button(u8"Dalej")) {
+				ImGui::BulletText(u8"Mapuje ona prędkość wiatru kolorystycznie, według legendy w prawym dolnym rogu aplikacji.");
+				if (ImGui::Button(u8"Dalej", ImVec2(100, 36))) {
 					tutorial_step = 2;
 				}
 			}
-			else if (tutorial_step == 2) {
-				show_wind_arrows = true;
-				ImGui::TextWrapped(u8"Krok 3: Strzałki wiatru");
+			else if (tutorial_step == 2 && show_tutorial) {
+				tutorial_steps_initialized[0] = false;
+				tutorial_steps_initialized[1] = false;
+				tutorial_steps_initialized[3] = false;
+				if (!tutorial_steps_initialized[2]) {
+					show_earthmap = true;
+					show_overlay = true;
+					show_wind_arrows = true;
+					isQuickMenuOpen = true;
+					tutorial_steps_initialized[2] = true;
+				}
+				ImGui::TextWrapped(u8"Krok 3: Linie wiatru");
 				ImGui::BulletText(u8"Animowane linie pokazują kierunki i siłę wiatru.");
-				ImGui::BulletText(u8"Również możesz je włączać i wyłączać w menu");
-				if (ImGui::Button(u8"Dalej")) {
+				ImGui::BulletText(u8"Również możesz je włączać i wyłączać w menu.");
+				if (ImGui::Button(u8"Dalej", ImVec2(100, 36))) {
+					tutorial_step = 3;
+				}
+			}
+			else if (tutorial_step == 3 && show_tutorial) {
+				tutorial_steps_initialized[0] = false;
+				tutorial_steps_initialized[1] = false;
+				tutorial_steps_initialized[2] = false;
+				if (!tutorial_steps_initialized[3]) {
+					show_earthmap = true;
+					show_overlay = true;
+					show_wind_arrows = true;
+					isQuickMenuOpen = true;
+					tutorial_steps_initialized[3] = true;
+				}
+				ImGui::TextWrapped(u8"Krok 4: Odczytywanie informacji o wietrze");
+				ImGui::BulletText(u8"Każda linia przedstawia kierunek i siłę wiatru w danym punkcie.");
+				ImGui::BulletText(u8"Długość linii oraz prędkość animacji zależą od prędkości wiatru.");
+				ImGui::BulletText(u8"Kierunek linii i kierunek animacji wizualizują kierunek wiatru.");
+				if (ImGui::Button(u8"Dalej", ImVec2(100, 36))) {
+					tutorial_step = 4;
+				}
+			}
+			else if (tutorial_step == 4 && show_tutorial) {
+				tutorial_steps_initialized[0] = false;
+				tutorial_steps_initialized[1] = false;
+				tutorial_steps_initialized[2] = false;
+				tutorial_steps_initialized[3] = false;
+				ImGui::TextWrapped(u8"Krok 5: Sterowanie i zaznaczanie");
+				ImGui::BulletText(u8"Możesz użyć klawiszy W, S, A, D do poruszania kamerą.");
+				ImGui::BulletText(u8"Klawisze Q, E służą do przybliżania i oddalania kamery.");
+				ImGui::BulletText(u8"Po kliknięciu LPM na wybrany kraj, zobaczysz dominujący kierunek wiatru.");
+				if (ImGui::Button(u8"Dalej", ImVec2(100, 36))) {
+					tutorial_step = 5;
+				}
+			}
+			else if (tutorial_step == 5 && show_tutorial) {
+				tutorial_steps_initialized[0] = false;
+				tutorial_steps_initialized[1] = false;
+				tutorial_steps_initialized[2] = false;
+				tutorial_steps_initialized[3] = false;
+				ImGui::TextWrapped(u8"To wszystko!");
+				ImGui::BulletText(u8"Teraz możesz odkrywać globalne zjawiska pogodowe i analizować wiatry na całym świecie.");
+				ImGui::BulletText(u8"W razie potrzeby, zawsze możesz ponownie uruchomić samouczek w menu.");
+				if (ImGui::Button(u8"Zakończ", ImVec2(100, 36))) {
 					show_tutorial = false;
 					tutorial_popup_open = false;
 					tutorial_step = -1;
 				}
 			}
+
 		}
 		ImGui::End();
 

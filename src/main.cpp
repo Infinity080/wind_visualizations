@@ -29,7 +29,7 @@ int main(int argc, char** argv)
 #endif
 
 	// Tworzenie okna za pomoc¹ glfw
-	GLFWwindow* window = glfwCreateWindow(1000, 1000, "Wind App", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(1000, 1000, u8"Wizualizacja Wiatrów Œwiata", NULL, NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
