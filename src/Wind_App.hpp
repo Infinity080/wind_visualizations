@@ -172,6 +172,7 @@ std::string max_speed_str = std::to_string(static_cast<int>(maxWindSpeed));
 static bool tutorial_popup_open = false;
 static int tutorial_step = -1;
 static bool tutorial_steps_initialized[4] = { false, false, false, false };
+float rotationSpeed = 0.0002f; // Prędkość obrotu kamery w tutorialu
 
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
@@ -1404,6 +1405,7 @@ void renderLoop(GLFWwindow* window) {
 			if (ImGui::SliderInt("##cameraSpeed", &cameraSpeed, 10, 1000, nullptr)) {
 				angleSpeed = 0.01f * (cameraSpeed / 100.0f);
 				moveSpeed = 0.01f * (cameraSpeed / 100.0f);
+				rotationSpeed = 0.01f * (cameraSpeed / 100.0f);
 			}
 
 			if (!overlay_icon)
@@ -1583,6 +1585,7 @@ void renderLoop(GLFWwindow* window) {
 		ImGui::SetNextWindowBgAlpha(0.85f);
 
 		if (ImGui::Begin("TutorialStep", nullptr, flags)) {
+			if (show_tutorial) cameraAngleX -= rotationSpeed;
 			if (tutorial_step == 0 && show_tutorial) {
 				tutorial_steps_initialized[1] = false;
 				tutorial_steps_initialized[2] = false;
