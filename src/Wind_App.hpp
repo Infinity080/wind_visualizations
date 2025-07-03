@@ -110,9 +110,9 @@ float aspectRatio = 1.f;
 float angleSpeed = 0.01f;
 float moveSpeed = 0.01f;
 
-float cameraAngleX = 0.0f;
-float cameraAngleY = 0.0f;
-float cameraDistance = 6.0f;
+float cameraAngleX = -0.25f;
+float cameraAngleY = 0.8f;
+float cameraDistance = 30.0f;
 
 bool dragging = false;
 double lastX = 0.0;
@@ -173,6 +173,10 @@ static bool tutorial_popup_open = false;
 static int tutorial_step = -1;
 static bool tutorial_steps_initialized[4] = { false, false, false, false };
 float rotationSpeed = 0.0002f; // Prędkość obrotu kamery w tutorialu
+bool revertCamera = false;
+bool zoomCamera = false;
+float targetCameraDistance = 6.0f;
+float targetCameraAngleY = 0.8f;
 
 glm::vec3 latLonToXYZ(float latInput, float lonInput) {
 	float lat = glm::radians(latInput);
@@ -306,6 +310,35 @@ glm::vec3 getRayFromMouse(double mouseX, double mouseY, int screenWidth, int scr
 	return rayWorld;
 }
 
+void revertCameraXToDefault() {
+	const float targetAngleX = -0.25f;
+	const float smoothingSpeed = 0.02f;
+
+	float difference = targetAngleX - cameraAngleX;
+
+	if (std::abs(difference) < 0.1f) {
+		revertCamera = false;
+		return;
+	}
+
+	cameraAngleX += difference * smoothingSpeed;
+	
+}
+
+void zoomCameraToDefault() {
+	const float smoothingSpeed = 0.03f;
+
+	float distanceDiff = targetCameraDistance - cameraDistance;
+	float angleYDiff = targetCameraAngleY - cameraAngleY;
+
+	if (std::abs(distanceDiff) < 0.1f && std::abs(angleYDiff) < 0.1f) {
+		zoomCamera = false;
+		return;
+	}
+
+	cameraDistance += distanceDiff * smoothingSpeed;
+	cameraAngleY += angleYDiff * smoothingSpeed;
+}
 // Funkcja do kontroli scrolla
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 	ImGuiIO& io = ImGui::GetIO();
@@ -1570,6 +1603,7 @@ void renderLoop(GLFWwindow* window) {
 					show_earthmap = false;
 					selectedCountryId = -1;
 					tutorial_step = 0;
+					zoomCamera = true;
 					ImGui::CloseCurrentPopup();
 				}
 				ImGui::EndPopup();
@@ -1683,12 +1717,15 @@ void renderLoop(GLFWwindow* window) {
 					show_tutorial = false;
 					tutorial_popup_open = false;
 					tutorial_step = -1;
+					revertCamera = true;
 				}
 			}
 
 		}
 		ImGui::End();
 
+		if (revertCamera) revertCameraXToDefault();
+		if (zoomCamera) zoomCameraToDefault();
 		// Render ImGui
 		ImGui::Render();
 
