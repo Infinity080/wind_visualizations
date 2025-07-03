@@ -150,6 +150,7 @@ int animationSpeed = 100;
 bool show_overlay = true;
 bool show_earthmap = true;
 bool show_tutorial = true;
+bool show_wind_arrows = true;
 int daysBefore = 0;
 bool isQuickMenuOpen = false;
 GLuint clock_icon = 0;
@@ -159,7 +160,7 @@ GLuint earthmap_icon = 0;
 GLuint tutorial_icon = 0;
 GLuint date_icon = 0;
 float ImGuiWidth = 460.0f;
-float ImGuiHeight = 314.0f;
+float ImGuiHeight = 350.0f;
 
 std::string date = GetFormattedDate(-daysBefore); // Dzisiejsza data
 
@@ -889,8 +890,8 @@ void renderScene(GLFWwindow* window)
 	glBindVertexArray(0);
 	glUseProgram(0);
 
-	if (show_tutorial) drawWindArrows();
 	if (show_overlay) drawWindOverlay();
+	if (show_wind_arrows) drawWindArrows();
 	if (selectedCountryId >= 0) {
 		CountryWindInfo info = calculateCountryWindInfo(selectedCountryId);
 		drawArrow(info.avgLat, info.avgLon, info.avgAngle, glm::vec3(1.0f, 1.0f, 1.0f));
@@ -1442,6 +1443,19 @@ void renderLoop(GLFWwindow* window) {
 			ImGui::SameLine(0, 1 * ImGui::GetStyle().ItemSpacing.x);
 			ImGui::Checkbox("##show_tutorial", &show_tutorial);
 
+			/*
+			if (!windarrows_icon)
+				windarrows_icon = Core::LoadTexture("img/compass-outline.png");
+			ImGui::Image((ImTextureID)(intptr_t)windarrows_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1));
+			*/
+			ImGui::Spacing();
+			ImGui::SameLine(0, ImGui::GetStyle().ItemSpacing.x);
+			ImGui::TextUnformatted(u8"Strzałki wiatru");
+
+			ImGui::SameLine(0, ImGui::GetStyle().ItemSpacing.x);
+			ImGui::Checkbox("##show_wind_arrows", &show_wind_arrows);
+
+
 			if (!date_icon)
 				date_icon = Core::LoadTexture("img/calendar-outline.png");
 			ImGui::Image((ImTextureID)(intptr_t)date_icon, ImVec2(24, 24), ImVec2(0, 0), ImVec2(1, 1)); 
@@ -1538,6 +1552,79 @@ void renderLoop(GLFWwindow* window) {
 
 		// Render sceny
 		renderScene(window);
+
+		// Samouczek
+		static bool tutorial_popup_open = false;
+		static int tutorial_step = -1;
+		if (show_tutorial && !tutorial_popup_open) {
+			ImGui::OpenPopup("Tutorial");
+			tutorial_popup_open = true;
+			tutorial_step = -1;
+		}
+
+		// wstęp
+		if (tutorial_step == -1) {
+			ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+			ImVec2 size(400, 200);
+			ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+			ImGui::SetNextWindowPos(ImVec2(center.x - size.x * 0.5f, center.y - size.y * 0.5f), ImGuiCond_Always);
+
+			if (ImGui::BeginPopupModal("Tutorial", nullptr, ImGuiWindowFlags_NoResize)) {
+				ImGui::TextWrapped(u8"Witaj w projekcie wizualizującym ruchy wiatrów na Ziemi.");
+				ImGui::Spacing();
+				ImGui::TextWrapped(u8"Podczas samouczka zobaczysz prezentowane efekty w tle.");
+				ImGui::Spacing();
+				if (ImGui::Button(u8"Start", ImVec2(120, 0))) {
+					show_overlay = false;
+					show_wind_arrows = false;
+					show_earthmap = false;
+					selectedCountryId = -1;
+					tutorial_step = 0;
+					ImGui::CloseCurrentPopup();
+				}
+				ImGui::EndPopup();
+			}
+		}
+
+		// tutorial
+		ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
+
+		ImVec2 pos = ImGui::GetMainViewport()->WorkPos;
+
+		ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
+		ImGui::SetNextWindowBgAlpha(0.85f);
+
+		if (ImGui::Begin("TutorialStep", nullptr, flags)) {
+			if (tutorial_step == 0) {
+				show_earthmap = true;
+				ImGui::TextWrapped(u8"Krok 1: Mapa satelitarna");
+				ImGui::BulletText(u8"W menu możesz włączać i wyłączać teksturę planety.");
+				if (ImGui::Button(u8"Dalej")) {
+					tutorial_step = 1;
+				}
+			}
+			else if (tutorial_step == 1) {
+				show_overlay = true;
+				ImGui::TextWrapped(u8"Krok 2: Nakładka prędkości wiatru");
+				ImGui::BulletText(u8"W menu możesz włączać i wyłączać nakładkę wiatru.");
+				ImGui::BulletText(u8"Mapuje ona prędkość wiatru kolorystycznie, według legendy w prawym dolnym rogu aplikacji");
+				if (ImGui::Button(u8"Dalej")) {
+					tutorial_step = 2;
+				}
+			}
+			else if (tutorial_step == 2) {
+				show_wind_arrows = true;
+				ImGui::TextWrapped(u8"Krok 3: Strzałki wiatru");
+				ImGui::BulletText(u8"Animowane linie pokazują kierunki i siłę wiatru.");
+				ImGui::BulletText(u8"Również możesz je włączać i wyłączać w menu");
+				if (ImGui::Button(u8"Dalej")) {
+					show_tutorial = false;
+					tutorial_popup_open = false;
+					tutorial_step = -1;
+				}
+			}
+		}
+		ImGui::End();
 
 		// Render ImGui
 		ImGui::Render();
