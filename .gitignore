@@ -1,1 +1,9 @@
 .vs/
+Debug/
+projekt-grk/Debug/
+*.exe
+*.dll
+*.pdb
+*.idb
+*.log
+*.tlog
