@@ -1,6 +1,66 @@
-# Projekt z Grafiki Komputerowej
+![Nagranie ekranu z aplikacji](./nagranie_ekranu.gif)
 
-## Projekt - Róża Wiatrów i Wzorce Wiatru
+## Opis projektu
+
+Aplikacja umożliwia interaktywną wizualizację globalnych wzorców wiatru na trójwymiarowym modelu kuli ziemskiej. Projekt prezentuje dane meteorologiczne w przystępny sposób, wykorzystując przy tym wiele technik grafiki komputerowej.
+Aplikacja pozwala na odczyt kierunków i prędkości wiatrów na całym świecie na podstawie historycznych danych, korzystając z API NOMADS (https://nomads.ncep.noaa.gov/) dostarczonego przez National Oceanic and Atmospheric Administration.
+
+Dzięki prostemu interfejsowi wraz z samouczkiem oraz graficznym elementom, takim jak animowane linie wiatru oraz strzałki z dominującymi kierunkami wiatru, aplikacja pozwala w łatwy sposób analizować i interpretować zjawiska atmosferyczne.
+
+## Główne funkcje aplikacji
+
+- Animowana wizualizacja globalnych wiatrów na podstawie danych z API.
+- Możliwość kliknięcia w wybrany region i wyświetlenia dominujących kierunków wiatru.
+- Wbudowany samouczek wyjaśniający jak korzystać z aplikacji oraz jak interpretować wizualizację.
+- Możliwość ukrywania i wyświetlania poszczególnych warstw.
+- Możliwość zmiany daty danych o wietrze.
+
+## Elementy aplikacji
+
+### 1. Trójwymiarowa wizualizacja Ziemi
+
+- Realistyczny model planety z wysokiej jakości teksturami satelitarnymi
+- Mapa normalnych do renderowania szczegółów powierzchni
+- Efekt atmosfery z niebieską poświatą wokół planety
+- Skybox tworzący tło kosmiczne
+
+### 2. Wizualizacja wiatrów
+
+- Animowane linie wiatru wizualizujące kierunki i prędkości wiatrów
+- Nakładka mapująca prędkości wiatru na kolory (od niebieskiego do zielonego)
+- Strzałki reprezentujące przeważający kierunek wiatru w danym państwie
+
+### 3. Interakcja z danymi geograficznymi
+
+- Rysowanie granic państw ładowanych z plików Shapefile
+- Interaktywne wybieranie krajów poprzez kliknięcie
+- Podświetlanie granic wybranego kraju
+
+### 4. Dane meteorologiczne
+
+- Dane pobierane z API NOMADS
+- Format GRIB konwertowany do JSON
+- Przeliczanie parametrów wiatru w danych: UGRD (składowa U wiatru), VGRD (składowa V wiatru), GUST (porywy wiatru)
+- Rozdzielczość danych: 1° x 1° (około 111 km szerokości na kafelek)
+- System cache'owania danych dla przyspieszenia uruchamiania aplikacji
+- Tryb offline z danymi backupowymi
+
+### 5. Interfejs Użytkownika
+
+- Menu szybkich ustawień
+- Legenda ze skalą prędkości wiatru
+- Samouczek po uruchomieniu aplikacji
+- Selektor dat umożliwiający wybieranie danych historycznych do 7 dni wstecz
+- Możliwość zmiany warstw (mapa satelitarna, nakładka prędkości wiatru, linie wiatru)
+
+### 6. Sterowanie
+
+- Kamera orbitalna z możliwością obrotu wokół planety
+- Kontrola kamery klawiaturą i myszką (obrót i zoomowanie)
+
+<br>
+
+# Projekt - Róża Wiatrów i Wzorce Wiatru
 
 Cel: Nałóż animowane wzorce wiatru na mapę Europy używając glifów (strzałek). Uwzględnij interaktywne róże wiatrów pokazujące dominujące kierunki dla regionu po kliknięciu. Interaktywny wybór historycznych danych.
 
@@ -8,12 +68,7 @@ Techniki GK: Wizualizacja pól wektorowych (instancjonowane strzałki/glify), An
 
 Specyfikacja: Reprezentuj wektory wiatru za pomocą instancjonowanych glifów strzałek 2D/3D. Animuj je subtelnie za pomocą shadera (np. pulsowanie koloru, lekki ruch). Wyświetlanie róży wiatrów po interakcji wymaga elementów interfejsu i agregacji danych regionalnych.
 
-## Prezentacja - Explosion with geometry shader
-
-https://learnopengl.com/Advanced-OpenGL/Geometry-Shader
-https://medium.com/chenjd-xyz/using-the-geometry-shader-to-achieve-model-explosion-effect-cf6d5ec03020
-
----
+# Prezentacja - Explosion with geometry shader
 
 <br>
 
@@ -42,7 +97,7 @@ cd vcpkg
 ### c) Budowanie vcpkg
 
 ```powershell
-.\bootstrap-vcpkg.bat
+.\bootstrap- vcpkg.bat
 ```
 
 ## 2. Integracja vcpkg z Visual Studio
@@ -60,20 +115,18 @@ Dzięki temu Visual Studio automatycznie wykryje wszystkie biblioteki zainstalow
 Podstawowa instalacja libcurl:
 
 ```powershell
-.\vcpkg install curl:x86-windows
+.\vcpkg install curl:x86- windows
 ```
 
 Instalacja cpr:
 
 ```powershell
-.\vcpkg install cpr:x86-windows
+.\vcpkg install cpr:x86- windows
 ```
 
 ## 4. Ustawienie prawidłowego kompilatora
 
-Jeśli masz np. `vcpkg install curl:x86-windows`, a w Visual Studio masz ustawioną konfigurację:
-
-- Wi64 — wtedy VS nie widzi pakietów x86-windows.
+Jeśli masz np. `vcpkg install curl:x86- windows`, a w Visual Studio masz ustawioną konfigurację `Wi64`, to Visual Studio nie widzi pakietów `x86- windows`.
 
 Rozwiązanie:
 
